@@ -25,7 +25,7 @@ function UserMenu() {
   useEffect(() => {
     const unsub = onAppAuthStateChange(async (u) => {
       if (u) {
-        const profile = await getProfile(u.id).catch(() => null);
+        const profile = await getProfile(u.uid).catch(() => null);
         setUserName(profile?.full_name || u.email?.split("@")[0] || "User");
         setUserPlan(profile?.plan?.toUpperCase() || "FREE");
       }

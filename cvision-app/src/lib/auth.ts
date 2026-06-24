@@ -2,10 +2,11 @@
 import type { User } from "firebase/auth";
 import {
   createUserWithEmailAndPassword,
+  getRedirectResult,
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
-  signInWithPopup,
+  signInWithRedirect,
   signOut,
   updatePassword,
   updateProfile,
@@ -77,10 +78,24 @@ export async function signUpWithEmail(email: string, password: string, fullName:
   }
 }
 
+/**
+ * Initiates Google Sign-In via redirect (avoids COOP popup issues in Next.js).
+ * After redirect returns to the app, call getGoogleRedirectResult() in a useEffect.
+ */
 export async function signInWithGoogle() {
   try {
-    const data = await signInWithPopup(getFirebaseAuth(), getGoogleProvider());
-    return { data, error: null };
+    await signInWithRedirect(getFirebaseAuth(), getGoogleProvider());
+    return { data: null, error: null };
+  } catch (error) {
+    return { data: null, error };
+  }
+}
+
+/** Call this once on app load to resolve the pending Google redirect. */
+export async function getGoogleRedirectResult() {
+  try {
+    const result = await getRedirectResult(getFirebaseAuth());
+    return { data: result, error: null };
   } catch (error) {
     return { data: null, error };
   }

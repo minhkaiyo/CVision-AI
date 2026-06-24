@@ -45,13 +45,13 @@ export default function RegisterPage() {
     try {
       const { data, error } = await signUpWithEmail(email, password, name);
       if (error) throw error;
-      const user = data.user;
+      const user = data?.user;
 
       if (!user) {
         throw new Error("Dang ky khong thanh cong.");
       }
 
-      await upsertProfile(user.id, {
+      await upsertProfile(user.uid, {
         full_name: name,
         email,
         plan: "free",

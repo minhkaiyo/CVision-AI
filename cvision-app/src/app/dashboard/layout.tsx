@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useState } from "react";
+import { ReactNode, useState, useEffect, useRef } from "react";
 import {
   FileText,
   LogOut,
@@ -27,7 +27,6 @@ import {
 import { useAuthGuard } from "@/lib/use-auth-guard";
 import { toast } from "@/components/ui/toast";
 import { motion, AnimatePresence } from "framer-motion";
-import { useEffect, useRef } from "react";
 import { AIChatWidget } from "@/components/AIChatWidget";
 import { getProfile, onAppAuthStateChange, signOutAppUser } from "@/lib/auth";
 
@@ -43,7 +42,7 @@ function UserMenu() {
   useEffect(() => {
     const unsub = onAppAuthStateChange(async (u) => {
       if (u) {
-        const profile = await getProfile(u.id).catch(() => null);
+        const profile = await getProfile(u.uid).catch(() => null);
         setUserName(profile?.full_name || u.email?.split("@")[0] || "User");
         setUserPlan(profile?.plan?.toUpperCase() || "FREE");
       }
@@ -197,6 +196,19 @@ function NavLink({
 
 function Sidebar({ onClose }: { onClose?: () => void }) {
   const router = useRouter();
+  const [userName, setUserName] = useState("Người dùng");
+  const [userEmail, setUserEmail] = useState("");
+
+  useEffect(() => {
+    const unsub = onAppAuthStateChange(async (u) => {
+      if (u) {
+        const profile = await getProfile(u.uid).catch(() => null);
+        setUserName(profile?.full_name || u.displayName || u.email?.split("@")[0] || "Người dùng");
+        setUserEmail(u.email || "");
+      }
+    });
+    return unsub;
+  }, []);
 
   const handleLogout = async () => {
     try {
@@ -252,16 +264,16 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
         </div>
       </div>
 
-      {/* Bottom user card */}
+      {/* Bottom user card — wired to Firebase auth */}
       <div className="p-3 border-t border-gray-100 shrink-0">
         <div className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-50 transition cursor-pointer">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold">
-              U
+              {userName.charAt(0).toUpperCase()}
             </div>
             <div>
-              <div className="text-[13px] font-semibold text-gray-700">User</div>
-              <div className="text-[11px] text-gray-400">Đang tải...</div>
+              <div className="text-[13px] font-semibold text-gray-700 truncate max-w-[120px]">{userName}</div>
+              <div className="text-[11px] text-gray-400 truncate max-w-[120px]">{userEmail}</div>
             </div>
           </div>
           <button

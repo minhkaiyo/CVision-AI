@@ -61,7 +61,7 @@ export default function ProfilePage() {
     const unsub = onAppAuthStateChange(async (u) => {
       setUser(u);
       if (u) {
-        const data = await getProfile(u.id).catch(() => null);
+        const data = await getProfile(u.uid).catch(() => null);
         if (data) {
           setProfile({
             full_name: data.full_name ?? "",
@@ -82,7 +82,7 @@ export default function ProfilePage() {
     if (!user) return;
     setSaving(true);
     try {
-      await upsertProfile(user.id, {
+      await upsertProfile(user.uid, {
         full_name: profile.full_name,
         email: profile.email,
         phone: profile.phone,

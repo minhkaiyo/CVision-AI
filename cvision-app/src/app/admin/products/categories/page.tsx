@@ -1,251 +1,135 @@
+// admin/products/categories/page.tsx — CVision Admin: Danh mục dịch vụ
 "use client";
 
 import { useState } from "react";
-import { Save, ToggleLeft, ToggleRight, Edit2, Check } from "lucide-react";
-import { toast } from "@/components/ui/toast";
+import { Tag, Plus, Edit2, Trash2, CheckCircle, FileText, MessageSquare, PenTool, Target } from "lucide-react";
 
-// ── Plan configuration ────────────────────────────────────────────────────────
-
-interface Plan {
+interface Category {
   id: string;
   name: string;
-  price_monthly: number;
-  price_yearly: number;
-  limits: {
-    analyses_per_day: number;
-    cv_versions_per_month: number;
-    export_pdf: boolean;
-    hr_simulation: boolean;
-    priority_support: boolean;
-  };
+  slug: string;
+  description: string;
+  icon: React.ElementType;
+  features: string[];
+  plan_required: string;
+  active: boolean;
 }
 
-const DEFAULT_PLANS: Plan[] = [
+const INITIAL_CATEGORIES: Category[] = [
   {
-    id: "free",
-    name: "Free",
-    price_monthly: 0,
-    price_yearly: 0,
-    limits: { analyses_per_day: 1, cv_versions_per_month: 0, export_pdf: false, hr_simulation: false, priority_support: false },
+    id: "ats-scanner", name: "ATS Scanner", slug: "ats-scanner",
+    description: "Phân tích CV theo tiêu chuẩn ATS với điểm số chi tiết",
+    icon: Target, plan_required: "FREE",
+    features: ["Điểm ATS tổng", "Keyword matching", "Phân tích layout", "Gợi ý cải thiện"],
+    active: true,
   },
   {
-    id: "premium",
-    name: "Premium",
-    price_monthly: 49000,
-    price_yearly: 470000,
-    limits: { analyses_per_day: -1, cv_versions_per_month: 10, export_pdf: true, hr_simulation: true, priority_support: false },
+    id: "ai-chat", name: "AI Career Assistant", slug: "ai-chat",
+    description: "Chat AI thời gian thực — tư vấn nghề nghiệp tức thì",
+    icon: MessageSquare, plan_required: "FREE",
+    features: ["Chat không giới hạn", "Phân tích CV theo ngữ cảnh", "Mock interview questions"],
+    active: true,
   },
   {
-    id: "b2b",
-    name: "B2B / Enterprise",
-    price_monthly: 0,
-    price_yearly: 0,
-    limits: { analyses_per_day: -1, cv_versions_per_month: -1, export_pdf: true, hr_simulation: true, priority_support: true },
+    id: "cover-letter", name: "Cover Letter Generator", slug: "cover-letter",
+    description: "Tự động tạo thư xin việc cá nhân hóa theo JD",
+    icon: PenTool, plan_required: "PRO",
+    features: ["Template đa dạng", "Tùy chỉnh tone văn phong", "Export PDF/Word"],
+    active: true,
+  },
+  {
+    id: "cv-versions", name: "CV Version Control", slug: "cv-versions",
+    description: "Quản lý nhiều phiên bản CV cho từng vị trí ứng tuyển",
+    icon: FileText, plan_required: "PREMIUM",
+    features: ["Lưu không giới hạn phiên bản", "So sánh diff giữa versions", "Tag & tìm kiếm"],
+    active: false,
   },
 ];
 
-// ── Feature toggles ───────────────────────────────────────────────────────────
-
-interface Toggle {
-  key: string;
-  label: string;
-  desc: string;
-  enabled: boolean;
-  audience: string;
-}
-
-const DEFAULT_TOGGLES: Toggle[] = [
-  { key: "hr_simulation",  label: "HR Simulation",       desc: "Giả lập nhà tuyển dụng đọc CV",          enabled: true,  audience: "premium" },
-  { key: "cv_diff_view",   label: "CV Diff View",        desc: "Hiển thị diff chi tiết khi tối ưu CV",   enabled: true,  audience: "all" },
-  { key: "probability",    label: "Probability Estimate",desc: "Dự đoán xác suất phù hợp",               enabled: false, audience: "premium" },
-  { key: "web_extension",  label: "Web Extension",       desc: "Phân tích JD trực tiếp trên trình duyệt",enabled: false, audience: "all" },
-  { key: "linkedin_import",label: "LinkedIn Import",     desc: "Import dữ liệu từ LinkedIn",             enabled: false, audience: "premium" },
-  { key: "ai_interview",   label: "AI Interview Prep",   desc: "Giả lập phỏng vấn với AI",               enabled: false, audience: "beta" },
-];
-
-// ── Inline number editor ──────────────────────────────────────────────────────
-
-const glassCard: React.CSSProperties = {
-  background: "rgba(10, 15, 28, 0.75)",
-  backdropFilter: "blur(24px) saturate(160%)",
-  WebkitBackdropFilter: "blur(24px) saturate(160%)",
-  border: "1px solid rgba(255,255,255,0.06)",
+const PLAN_COLORS: Record<string, string> = {
+  FREE: "bg-gray-100 text-gray-600",
+  PRO: "bg-blue-100 text-blue-700",
+  PREMIUM: "bg-amber-100 text-amber-700",
+  ENTERPRISE: "bg-purple-100 text-purple-700",
 };
 
-function NumberField({ value, onChange }: { value: number; onChange: (v: number) => void }) {
-  const [editing, setEditing] = useState(false);
-  const [local, setLocal] = useState(String(value));
+export default function CategoriesAdminPage() {
+  const [categories, setCategories] = useState<Category[]>(INITIAL_CATEGORIES);
 
-  if (!editing) {
-    return (
-      <button onClick={() => setEditing(true)} className="flex items-center gap-1 text-white/60 hover:text-blue-400 group">
-        <span className="font-mono font-semibold">{value === -1 ? "∞" : value}</span>
-        <Edit2 className="w-3 h-3 opacity-0 group-hover:opacity-100 transition" />
-      </button>
-    );
-  }
-  return (
-    <div className="flex items-center gap-1">
-      <input value={local} onChange={e => setLocal(e.target.value)} autoFocus
-        className="w-16 rounded px-1.5 py-0.5 text-[13px] font-mono outline-none text-white"
-        style={{ background: "rgba(59,130,246,0.1)", border: "1px solid rgba(59,130,246,0.3)" }} />
-      <button onClick={() => { onChange(Number(local)); setEditing(false); }}
-        className="text-emerald-400 hover:text-emerald-300">
-        <Check className="w-4 h-4" />
-      </button>
-    </div>
-  );
-}
-
-export default function ProductCategoriesPage() {
-  const [plans, setPlans] = useState<Plan[]>(DEFAULT_PLANS);
-  const [toggles, setToggles] = useState<Toggle[]>(DEFAULT_TOGGLES);
-  const [saved, setSaved] = useState(false);
-
-  const updatePlanLimit = (planId: string, key: keyof Plan["limits"], val: number | boolean) => {
-    setPlans(prev => prev.map(p =>
-      p.id === planId ? { ...p, limits: { ...p.limits, [key]: val } } : p
-    ));
+  const toggleActive = (id: string) => {
+    setCategories(prev => prev.map(c => c.id === id ? { ...c, active: !c.active } : c));
   };
-
-  const updatePrice = (planId: string, field: "price_monthly" | "price_yearly", val: number) => {
-    setPlans(prev => prev.map(p => p.id === planId ? { ...p, [field]: val } : p));
-  };
-
-  const handleSave = () => {
-    setSaved(true);
-    toast("success", "Đã lưu cấu hình gói dịch vụ!");
-    setTimeout(() => setSaved(false), 2000);
-  };
-
-  const BOOL_LIMITS: (keyof Plan["limits"])[] = ["export_pdf", "hr_simulation", "priority_support"];
-  const NUM_LIMITS: { key: keyof Plan["limits"]; label: string }[] = [
-    { key: "analyses_per_day", label: "Phân tích/ngày" },
-    { key: "cv_versions_per_month", label: "CV Version/tháng" },
-  ];
 
   return (
-    <div className="space-y-6 pb-12 relative z-10">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold text-white">Cấu hình gói dịch vụ</h1>
-          <p className="text-[13px] text-white/40 mt-0.5">Thay đổi giá và giới hạn tính năng không cần deploy lại</p>
+          <h1 className="text-2xl font-bold text-gray-900">Danh mục Dịch vụ AI</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{categories.filter(c => c.active).length} danh mục đang hoạt động</p>
         </div>
-        <button onClick={handleSave}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-[13px] font-semibold transition"
-          style={saved
-            ? { background: "rgba(16,185,129,0.15)", border: "1px solid rgba(16,185,129,0.25)", color: "#34d399" }
-            : { background: "rgba(59,130,246,0.15)", border: "1px solid rgba(59,130,246,0.25)", color: "#93c5fd" }
-          }>
-          <Save className="w-4 h-4" />
-          {saved ? "Đã lưu!" : "Lưu thay đổi"}
+        <button className="flex items-center gap-2 px-4 py-2 text-sm text-white bg-blue-500 hover:bg-blue-600 rounded-xl transition shadow-sm">
+          <Plus className="w-4 h-4" /> Thêm danh mục
         </button>
       </div>
 
-      {/* Plans config */}
-      <div className="rounded-2xl overflow-hidden" style={glassCard}>
-        <div className="p-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-          <h3 className="font-semibold text-white/80">Bảng giá động</h3>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-[13px]">
-            <thead style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-              <tr className="text-white/30 text-xs uppercase tracking-wide">
-                <th className="p-4 text-left font-medium">Cấu hình</th>
-                {plans.map(p => (
-                  <th key={p.id} className="p-4 text-left font-medium">{p.name}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              <tr style={{ borderTop: "1px solid rgba(255,255,255,0.03)" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                <td className="p-4 text-white/40">Giá tháng (đ)</td>
-                {plans.map(p => (
-                  <td key={p.id} className="p-4">
-                    {p.id === "b2b" ? <span className="text-white/20 italic">Liên hệ</span>
-                      : <NumberField value={p.price_monthly} onChange={v => updatePrice(p.id, "price_monthly", v)} />}
-                  </td>
-                ))}
-              </tr>
-              <tr style={{ borderTop: "1px solid rgba(255,255,255,0.03)" }}
-                onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                <td className="p-4 text-white/40">Giá năm (đ)</td>
-                {plans.map(p => (
-                  <td key={p.id} className="p-4">
-                    {p.id === "b2b" ? <span className="text-white/20 italic">Liên hệ</span>
-                      : <NumberField value={p.price_yearly} onChange={v => updatePrice(p.id, "price_yearly", v)} />}
-                  </td>
-                ))}
-              </tr>
-              {NUM_LIMITS.map(({ key, label }) => (
-                <tr key={key} style={{ borderTop: "1px solid rgba(255,255,255,0.03)" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                  <td className="p-4 text-white/40">{label} <span className="text-white/20 text-[11px]">(-1 = ∞)</span></td>
-                  {plans.map(p => (
-                    <td key={p.id} className="p-4">
-                      <NumberField value={p.limits[key] as number} onChange={v => updatePlanLimit(p.id, key, v)} />
-                    </td>
-                  ))}
-                </tr>
-              ))}
-              {BOOL_LIMITS.map(key => (
-                <tr key={key} style={{ borderTop: "1px solid rgba(255,255,255,0.03)" }}
-                  onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-                  <td className="p-4 text-white/40 capitalize">{String(key).replace(/_/g, " ")}</td>
-                  {plans.map(p => (
-                    <td key={p.id} className="p-4">
-                      <button onClick={() => updatePlanLimit(p.id, key, !p.limits[key])}
-                        className="text-[11px] px-2.5 py-1 rounded-full font-semibold transition"
-                        style={p.limits[key]
-                          ? { background: "rgba(16,185,129,0.12)", color: "#34d399", border: "1px solid rgba(16,185,129,0.2)" }
-                          : { background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.3)", border: "1px solid rgba(255,255,255,0.08)" }
-                        }>
-                        {p.limits[key] ? "Có" : "Không"}
-                      </button>
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-      {/* Feature toggles */}
-      <div className="rounded-2xl overflow-hidden" style={glassCard}>
-        <div className="p-4" style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}>
-          <h3 className="font-semibold text-white/80">Feature Toggles</h3>
-          <p className="text-[12px] text-white/30 mt-0.5">Bật/tắt tính năng thử nghiệm cho từng nhóm người dùng</p>
-        </div>
-        <div>
-          {toggles.map(t => (
-            <div key={t.key} className="flex items-center justify-between p-4 transition"
-              style={{ borderTop: "1px solid rgba(255,255,255,0.03)" }}
-              onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.02)")} onMouseLeave={e => (e.currentTarget.style.background = "transparent")}>
-              <div className="flex-1 min-w-0 mr-4">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium text-white/70">{t.label}</span>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full font-semibold"
-                    style={t.audience === "all"
-                      ? { background: "rgba(59,130,246,0.12)", color: "#93c5fd", border: "1px solid rgba(59,130,246,0.2)" }
-                      : t.audience === "premium"
-                      ? { background: "rgba(245,158,11,0.12)", color: "#fbbf24", border: "1px solid rgba(245,158,11,0.2)" }
-                      : { background: "rgba(139,92,246,0.12)", color: "#a78bfa", border: "1px solid rgba(139,92,246,0.2)" }
-                    }>{t.audience.toUpperCase()}</span>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        {categories.map(c => (
+          <div key={c.id} className={`bg-white rounded-2xl border shadow-sm p-5 transition ${!c.active ? "opacity-60" : ""}`}>
+            <div className="flex items-start justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center">
+                  <c.icon className="w-5 h-5 text-blue-500" />
                 </div>
-                <p className="text-[12px] text-white/30 mt-0.5">{t.desc}</p>
+                <div>
+                  <div className="font-bold text-gray-800">{c.name}</div>
+                  <span className="text-[11px] text-gray-400 font-mono">/{c.slug}</span>
+                </div>
               </div>
-              <button onClick={() => setToggles(prev => prev.map(x => x.key === t.key ? { ...x, enabled: !x.enabled } : x))}
-                className="shrink-0">
-                {t.enabled
-                  ? <ToggleRight className="w-8 h-8 text-emerald-400 hover:text-emerald-300 transition" />
-                  : <ToggleLeft className="w-8 h-8 text-white/15 hover:text-white/30 transition" />
-                }
-              </button>
+              <div className="flex items-center gap-2">
+                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${c.active ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
+                  {c.active ? "Active" : "Inactive"}
+                </span>
+              </div>
             </div>
-          ))}
-        </div>
+
+            <p className="text-[13px] text-gray-500 mb-3">{c.description}</p>
+
+            <div className="mb-3">
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2">Tính năng</p>
+              <div className="space-y-1">
+                {c.features.map(f => (
+                  <div key={f} className="flex items-center gap-2 text-[12px] text-gray-600">
+                    <CheckCircle className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                    {f}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3 border-t border-gray-50">
+              <div className="flex items-center gap-2">
+                <Tag className="w-3.5 h-3.5 text-gray-400" />
+                <span className="text-[12px] text-gray-500">Gói tối thiểu:</span>
+                <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${PLAN_COLORS[c.plan_required] || PLAN_COLORS.FREE}`}>
+                  {c.plan_required}
+                </span>
+              </div>
+              <div className="flex items-center gap-2">
+                <button className="p-1.5 text-gray-400 hover:text-blue-500 transition" title="Chỉnh sửa">
+                  <Edit2 className="w-4 h-4" />
+                </button>
+                <button
+                  onClick={() => toggleActive(c.id)}
+                  className={`px-3 py-1.5 text-[12px] rounded-lg font-semibold transition ${
+                    c.active ? "bg-red-50 text-red-500 hover:bg-red-100" : "bg-emerald-50 text-emerald-600 hover:bg-emerald-100"
+                  }`}
+                >
+                  {c.active ? "Tắt" : "Bật"}
+                </button>
+              </div>
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

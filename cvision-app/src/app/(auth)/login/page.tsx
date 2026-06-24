@@ -3,12 +3,12 @@
 /* eslint-disable react/no-unescaped-entities */
 
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Eye, EyeOff, ArrowRight, Sparkles, AlertCircle } from "lucide-react";
 import Image from "next/image";
-import { signInWithEmail, signInWithGoogle, sendResetPasswordEmail } from "@/lib/auth";
+import { signInWithEmail, signInWithGoogle, getGoogleRedirectResult, sendResetPasswordEmail } from "@/lib/auth";
 
 type AuthErrorLike = {
   code?: string;
@@ -59,6 +59,19 @@ export default function LoginPage() {
       setLoading(false);
     }
   };
+
+  // Handle Google redirect result when user returns from Google login page
+  useEffect(() => {
+    setLoading(true);
+    getGoogleRedirectResult().then(({ data, error }) => {
+      if (error) {
+        const code = typeof error === "object" && error !== null ? (error as AuthErrorLike).code || "" : "";
+        if (code) setError(getAuthErrorMsg(code));
+      } else if (data) {
+        router.push("/dashboard");
+      }
+    }).finally(() => setLoading(false));
+  }, [router]);
 
   const handleGoogle = async () => {
     setError("");
