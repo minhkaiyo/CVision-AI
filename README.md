@@ -106,9 +106,25 @@ uvicorn app.main:app --reload
 
 *The application features a modern, dark-themed dashboard with animated Glassmorphism panels, providing a truly immersive experience for job seekers.*
 
-- **Login/Register**: Immersive background with blur-backdrop panels.
-- **Floating Chat AI**: Interactive chat interface with pulsing glows and typing indicators.
-- **Analysis Dashboard**: Interactive charts and ATS scoring cards.
+<div align="center">
+  <img src="images/showcase-1.png" width="800" alt="CVision AI Overview" />
+  <br/><br/>
+  <img src="images/showcase-2.png" width="800" alt="AI Resume Analysis" />
+  <br/><br/>
+  <img src="images/showcase-3.png" width="800" alt="ATS Score Breakdown" />
+  <br/><br/>
+  <img src="images/showcase-4.png" width="800" alt="Real-time Chat Assistant" />
+  <br/><br/>
+  <img src="images/showcase-5.png" width="800" alt="Job Description Matching" />
+  <br/><br/>
+  <img src="images/showcase-6.png" width="800" alt="Cover Letter Generator" />
+  <br/><br/>
+  <img src="images/showcase-7.png" width="800" alt="User Dashboard" />
+  <br/><br/>
+  <img src="images/showcase-8.png" width="800" alt="Authentication Panels" />
+  <br/><br/>
+  <img src="images/showcase-9.png" width="800" alt="Platform Analytics" />
+</div>
 
 ---
 
