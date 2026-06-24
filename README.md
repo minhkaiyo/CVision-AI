@@ -11,6 +11,13 @@
 
 <br/>
 
+<div align="center">
+  <h2>🚀 <a href="https://cv-resume-ai-analyze.vercel.app/">Live Demo: Trải nghiệm CVision AI ngay tại đây!</a> 🚀</h2>
+  <p><i>Trực tiếp trải nghiệm tính năng Phân tích CV & AI Chat mà không cần cài đặt code.</i></p>
+</div>
+
+<br/>
+
 **CVision AI** is a state-of-the-art SaaS platform designed to revolutionize the job application process. By leveraging the power of **Google's Gemini Multimodal AI**, this application provides intelligent, context-aware CV analysis, ATS semantic scoring, personalized cover letter generation, and an interactive real-time AI career advisor.
 
 Built with a focus on **Premium UX/UI**, the frontend boasts a sleek Glassmorphism design, fluid Framer Motion micro-animations, and a responsive dashboard that rivals top-tier enterprise SaaS products.
