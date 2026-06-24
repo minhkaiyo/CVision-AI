@@ -4,29 +4,9 @@
     {
       "src": "cvision-app/package.json",
       "use": "@vercel/next"
-    },
-    {
-      "src": "backend/app/main.py",
-      "use": "@vercel/python"
     }
   ],
   "routes": [
-    {
-      "src": "/api/v1/chat",
-      "dest": "cvision-app/api/v1/chat"
-    },
-    {
-      "src": "/api/v1/extract",
-      "dest": "cvision-app/api/v1/extract"
-    },
-    {
-      "src": "/api/v1/upload",
-      "dest": "cvision-app/api/v1/upload"
-    },
-    {
-      "src": "/api/(.*)",
-      "dest": "backend/app/main.py"
-    },
     {
       "src": "/(.*)",
       "dest": "cvision-app/$1"
