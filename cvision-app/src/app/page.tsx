@@ -827,7 +827,7 @@ export default function HomePage() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {[
               { icon: Search, title: "ATS Scanner", desc: "Tự động nhận diện rủi ro từ khóa ẩn sâu bên trong các bộ lọc khắt khe nhất của ATS.", img: "https://framerusercontent.com/images/BGgtXSuezGkXRg4zYlZNzJAXEE.webp" },
-              { icon: Bot, title: "AI Agent", desc: "Thực thi tự động hóa end-to-end. AI Agent tự lên kế hoạch, rà soát và tinh chỉnh CV của bạn.", img: "https://framerusercontent.com/images/qlpK6MJmUtSiRbbJJw2m0Tnj0.webp" },
+              { icon: Bot, title: "AI Agent", desc: "Thực thi tự động hóa end-to-end. AI Agent tự lên kế hoạch, rà soát và tinh chỉnh CV của bạn.", img: "/images/ai-agent.png" },
               { icon: BarChart3, title: "Phân tích đa chiều", desc: "Dẫn đầu xu thế tuyển dụng. Liên tục quét và đối chiếu với các thuật toán ATS mới nhất.", img: "https://framerusercontent.com/images/BGgtXSuezGkXRg4zYlZNzJAXEE.webp" },
               { icon: Workflow, title: "Checklist thông minh", desc: "Tự động khởi tạo danh sách hành động từ kết quả phân tích, kết nối trực tiếp vào luồng chỉnh sửa.", img: "https://framerusercontent.com/images/E7BgozJAm5PBqfplk2ynWhC1qU.webp" },
             ].map((feat, i) => (
