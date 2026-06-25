@@ -1,1 +1,24 @@
+# Dependencies
+node_modules/
+.venv/
+env/
+venv/
+__pycache__/
+
+# Environments
+.env
+.env.*
+.env.local
+*.local
+
+# IDE
+.idea/
+.vscode/
+
+# Vercel
 .vercel
+
+# Specific directories to ignore
+source/
+images/
+docs/
