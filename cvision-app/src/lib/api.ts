@@ -248,6 +248,45 @@ export async function apiCheckHealth() {
   return request<{ status: string }>("/health");
 }
 
+// ── Job Matching ──────────────────────────────────────────────────────────────
+
+export interface ApiJob {
+  id: string;
+  title: string;
+  company: string;
+  logo: string;
+  location: string;
+  salary: string;
+  salary_min?: number;
+  salary_max?: number;
+  tags: string[];
+  industry: string;
+  matchScore: number;
+  posted: string;
+  url: string;
+  description: string;
+  source: string;
+  work_type: "remote" | "hybrid" | "onsite";
+}
+
+export async function apiGetJobs() {
+  return request<{ status: string; jobs: ApiJob[]; total: number; cv_keywords: string[] }>("/jobs");
+}
+
+export async function apiMatchJobs(payload: {
+  cv_keywords?: string[];
+  role?: string;
+  skills?: string[];
+  matched_keywords?: string[];
+  missing_keywords?: string[];
+}) {
+  return request<{ status: string; jobs: ApiJob[]; total: number; cv_keywords: string[] }>("/jobs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 // ── Resume-Matcher improve pipeline (via FastAPI backend) ─────────────────────
 
 export async function apiImprovePreview(payload: {
