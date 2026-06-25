@@ -507,13 +507,13 @@ function DashboardShell({
         <motion.div 
           animate={{ x: ["0%", "30%", "-10%", "0%"], y: ["0%", "-20%", "10%", "0%"] }}
           transition={{ duration: 15, ease: "easeInOut", repeat: Infinity }}
-          className="absolute -top-[10%] -left-[10%] w-[70%] h-[70%] rounded-full bg-gradient-to-r from-blue-400/60 to-cyan-400/60 blur-[120px] mix-blend-multiply" 
+          className="absolute -top-[10%] -left-[10%] w-[70%] h-[70%] rounded-full bg-gradient-to-r from-blue-300/40 to-cyan-300/40 blur-[120px]" 
         />
         
         <motion.div 
           animate={{ x: ["0%", "-30%", "20%", "0%"], y: ["0%", "20%", "-20%", "0%"] }}
           transition={{ duration: 20, ease: "easeInOut", repeat: Infinity }}
-          className="absolute -bottom-[10%] -right-[10%] w-[80%] h-[80%] rounded-full bg-gradient-to-l from-purple-400/60 to-pink-400/60 blur-[120px] mix-blend-multiply" 
+          className="absolute -bottom-[10%] -right-[10%] w-[80%] h-[80%] rounded-full bg-gradient-to-l from-purple-300/30 to-pink-300/30 blur-[120px]" 
         />
       </div>
 
