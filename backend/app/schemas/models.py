@@ -732,6 +732,9 @@ class HealthResponse(BaseModel):
     """Health check response."""
 
     status: str
+    firebase_configured: bool = False
+    firebase_ready: bool = False
+    firebase_error: str | None = None
 
 
 class StatusResponse(BaseModel):
@@ -742,6 +745,7 @@ class StatusResponse(BaseModel):
     llm_healthy: bool
     has_master_resume: bool
     database_stats: dict[str, Any]
+    firebase_status: dict[str, Any] = Field(default_factory=dict)
 
 
 # Diff-Based Improvement Models

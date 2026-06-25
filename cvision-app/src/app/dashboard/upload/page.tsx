@@ -317,37 +317,162 @@ export default function UploadPage() {
 // ── Demo result builder (when backend is unavailable) ────────
 
 function buildDemoResult(cvText: string, role: string): Partial<AnalysisResult> {
-  const words = cvText.toLowerCase().split(/\s+/);
-  const commonKeywords = ["python", "react", "sql", "javascript", "typescript", "excel",
-    "figma", "node.js", "java", "git", "aws", "docker", "communication", "leadership"];
-  const matched = commonKeywords.filter((k) => words.some((w) => w.includes(k)));
-  const missing = commonKeywords.filter((k) => !matched.includes(k)).slice(0, 5);
-  const baseScore = 55 + matched.length * 3;
+  const text = cvText.toLowerCase();
+  const words = text.split(/\s+/).filter(Boolean);
+  const wordCount = words.length;
+
+  // ── CV structure detection ──────────────────────────────────────────────
+  const cvSectionKeywords = [
+    "experience", "education", "skills", "work", "summary", "profile",
+    "projects", "objective", "contact", "kinh nghiệm", "học vấn", "kỹ năng",
+    "dự án", "chứng chỉ", "certification",
+  ];
+  const foundSections = cvSectionKeywords.filter(k => text.includes(k)).length;
+
+  const hasEmail = /[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}/.test(cvText);
+  const hasPhone = /(\+84|0)\d{8,10}/.test(cvText);
+  const hasDate = /\b(19|20)\d{2}\b/.test(cvText);
+  const hasMetrics = /\d+\s*(%|x\b|lần|người|team|triệu|nghìn|k\b|million)/.test(text);
+
+  // ── Penalty calculation (mirrors backend logic) ─────────────────────────
+  let penalty = 0;
+  if (wordCount < 30)       penalty += 60;
+  else if (wordCount < 60)  penalty += 30;
+  else if (wordCount < 100) penalty += 10;
+
+  if (foundSections === 0)      penalty += 40;
+  else if (foundSections < 2)   penalty += 20;
+
+  if (!hasEmail && wordCount > 50) penalty += 10;
+  if (!hasDate && wordCount > 100) penalty += 10;
+  penalty = Math.min(penalty, 90);
+
+  const mult = 1.0 - penalty / 100;
+  const isValidCV = penalty < 50;
+
+  // ── Keyword matching ────────────────────────────────────────────────────
+  const commonKeywords = [
+    "python", "react", "sql", "javascript", "typescript", "excel",
+    "figma", "node.js", "java", "git", "aws", "docker",
+    "communication", "leadership", "agile", "scrum",
+  ];
+  const matched = commonKeywords.filter(k => words.some(w => w.includes(k)));
+  const missing = commonKeywords.filter(k => !matched.includes(k)).slice(0, 5);
+
+  // ── 0-based scores (no freebies) ────────────────────────────────────────
+  const rawLayout = Math.min(
+    foundSections * 14 + (hasEmail ? 8 : 0) + (hasPhone ? 6 : 0) + Math.min(wordCount / 20, 12),
+    100
+  );
+  const rawContent = Math.min(
+    foundSections * 10 + Math.min(wordCount / 15, 25) + (hasMetrics ? 15 : 0),
+    100
+  );
+  const rawKeyword = matched.length > 0 ? Math.min(30 + matched.length * 8, 90) : 10;
+  const rawSkills  = Math.min(matched.length * 10, 80);
+  const rawAchievement = hasMetrics ? 65 : (foundSections > 2 ? 35 : 15);
+  const rawAts     = Math.min(rawKeyword * 0.6 + rawLayout * 0.4, 95);
+
+  const rawTotal = Math.round(
+    rawLayout      * 0.15 +
+    rawContent     * 0.25 +
+    rawAts         * 0.30 +
+    rawKeyword     * 0.15 +
+    rawSkills      * 0.10 +
+    rawAchievement * 0.05
+  );
+
+  const penalize = (s: number) => Math.max(0, Math.round(s * mult));
+
+  const totalScore = Math.max(1, penalize(rawTotal));
+
+  // ── Warning for non-CV content ──────────────────────────────────────────
+  const notCVWarning = !isValidCV
+    ? "Tài liệu có vẻ không phải CV. Kết nối backend để phân tích chính xác."
+    : undefined;
 
   return {
-    total_score: Math.min(baseScore, 95),
-    layout_score: 75,
-    content_score: 68,
-    ats_score: 60 + matched.length * 2,
-    keyword_score: 50 + matched.length * 4,
-    skills_score: 70,
-    achievement_score: 55,
+    total_score: totalScore,
+    layout_score: penalize(rawLayout),
+    content_score: penalize(rawContent),
+    ats_score: penalize(rawAts),
+    keyword_score: penalize(rawKeyword),
+    skills_score: penalize(rawSkills),
+    achievement_score: penalize(rawAchievement),
     matched_keywords: matched,
     missing_keywords: missing,
-    ats_platform_scores: { workday: 72, taleo: 65, icims: 70, greenhouse: 68, lever: 74, successfactors: 63 },
-    suggestions: [
-      { category: "keyword", priority: "high", problem: "Thiếu từ khóa quan trọng trong JD", recommendation: `Bổ sung: ${missing.slice(0, 3).join(", ")}`, evidence: "ATS sẽ lọc CV thiếu từ khóa cốt lõi" },
-      { category: "achievement", priority: "medium", problem: "Mô tả kinh nghiệm chưa có số liệu định lượng", recommendation: "Thêm con số cụ thể: tăng X%, tiết kiệm Y giờ/tuần...", evidence: "CV có số liệu định lượng được đọc kỹ hơn 40%" },
-      { category: "content", priority: "low", problem: "Mục tiêu nghề nghiệp quá chung chung", recommendation: `Cá nhân hóa mục tiêu cho vị trí ${role}`, evidence: "HR thường đọc phần này đầu tiên" },
-    ],
-    hr_review: {
-      first_impression: `CV nhìn tổng thể khá ổn cho vị trí ${role}. Cần cải thiện phần từ khóa để qua ATS.`,
-      strengths: ["Cấu trúc CV rõ ràng", "Có liệt kê kỹ năng kỹ thuật", "Kinh nghiệm được mô tả theo thứ tự thời gian"],
-      concerns: ["Tỷ lệ khớp từ khóa với JD còn thấp", "Thiếu số liệu định lượng trong thành tích", "Mục tiêu nghề nghiệp chưa cụ thể"],
-      priority_actions: [`Thêm từ khóa: ${missing.slice(0, 3).join(", ")}`, "Viết lại ít nhất 2 bullet điểm với số liệu cụ thể", `Tùy chỉnh mục tiêu cho vị trí ${role}`],
+    ats_platform_scores: {
+      workday:        Math.min(penalize(rawAts) + 5, 100),
+      taleo:          Math.max(penalize(rawAts) - 5, 0),
+      icims:          penalize(rawAts),
+      greenhouse:     Math.min(penalize(rawAts) + 3, 100),
+      lever:          Math.min(penalize(rawAts) + 2, 100),
+      successfactors: Math.max(penalize(rawAts) - 8, 0),
     },
-    summary: `CV của bạn có nền tảng tốt nhưng cần được tối ưu để vượt qua hệ thống ATS và thu hút HR cho vị trí ${role}.`,
-    strengths: ["Cấu trúc CV rõ ràng, dễ đọc", `Có ${matched.length} kỹ năng phù hợp với ${role}`],
-    weaknesses: ["Tỷ lệ khớp từ khóa ATS chưa cao", "Thiếu số liệu định lượng cho thành tích"],
+    suggestions: isValidCV ? [
+      {
+        category: "keyword" as const,
+        priority: "high" as const,
+        problem: "Thiếu từ khóa quan trọng trong JD",
+        recommendation: `Bổ sung: ${missing.slice(0, 3).join(", ")}`,
+        evidence: "ATS sẽ lọc CV thiếu từ khóa cốt lõi",
+      },
+      {
+        category: "achievement" as const,
+        priority: "medium" as const,
+        problem: "Mô tả kinh nghiệm chưa có số liệu định lượng",
+        recommendation: "Thêm con số cụ thể: tăng X%, tiết kiệm Y giờ/tuần...",
+        evidence: "CV có số liệu định lượng được đọc kỹ hơn 40%",
+      },
+      {
+        category: "content" as const,
+        priority: "low" as const,
+        problem: "Mục tiêu nghề nghiệp quá chung chung",
+        recommendation: `Cá nhân hóa mục tiêu cho vị trí ${role}`,
+        evidence: "HR thường đọc phần này đầu tiên",
+      },
+    ] : [
+      {
+        category: "content" as const,
+        priority: "high" as const,
+        problem: notCVWarning ?? "Tài liệu không nhận dạng được là CV",
+        recommendation: "Vui lòng upload file CV đúng định dạng (PDF hoặc DOCX)",
+        evidence: `Tài liệu chỉ có ${wordCount} từ và ${foundSections} section CV`,
+      },
+    ],
+    hr_review: isValidCV ? {
+      first_impression: `CV nhìn tổng thể ${totalScore >= 60 ? "khá ổn" : "cần cải thiện nhiều"} cho vị trí ${role}. Cần cải thiện phần từ khóa để qua ATS.`,
+      strengths: [
+        ...(foundSections > 2 ? ["Cấu trúc CV có đủ các mục cơ bản"] : []),
+        ...(matched.length > 0 ? [`Có ${matched.length} kỹ năng liên quan`] : []),
+        ...(hasMetrics ? ["Có sử dụng số liệu định lượng"] : []),
+      ].slice(0, 3),
+      concerns: [
+        ...(rawKeyword < 50 ? ["Tỷ lệ khớp từ khóa với JD còn thấp"] : []),
+        ...(!hasMetrics ? ["Thiếu số liệu định lượng trong thành tích"] : []),
+        ...(foundSections < 3 ? ["Thiếu một số mục CV quan trọng"] : []),
+      ].slice(0, 3),
+      priority_actions: [
+        `Thêm từ khóa: ${missing.slice(0, 3).join(", ")}`,
+        "Viết lại ít nhất 2 bullet điểm với số liệu cụ thể",
+        `Tùy chỉnh mục tiêu cho vị trí ${role}`,
+      ],
+    } : undefined,
+    summary: isValidCV
+      ? `CV có điểm tổng ${totalScore}/100. ${totalScore < 50 ? "Cần cải thiện đáng kể" : totalScore < 70 ? "Khá ổn nhưng cần tối ưu thêm" : "Tốt"} để phù hợp vị trí ${role}.`
+      : `Tài liệu này không được nhận dạng là CV (${wordCount} từ, ${foundSections} section). Vui lòng upload CV đúng định dạng.`,
+    strengths: isValidCV
+      ? [
+          ...(foundSections > 2 ? [`Cấu trúc CV có ${foundSections} section rõ ràng`] : []),
+          ...(matched.length > 0 ? [`${matched.length} kỹ năng phù hợp với ${role}`] : []),
+        ]
+      : [],
+    weaknesses: isValidCV
+      ? [
+          ...(rawKeyword < 50 ? ["Tỷ lệ khớp từ khóa ATS chưa cao"] : []),
+          ...(!hasMetrics ? ["Thiếu số liệu định lượng cho thành tích"] : []),
+          ...(wordCount < 200 ? ["CV có thể quá ngắn, thiếu thông tin"] : []),
+        ]
+      : ["Không phát hiện cấu trúc CV hợp lệ", `Chỉ có ${wordCount} từ, không đủ để phân tích`],
   };
 }

@@ -6,6 +6,7 @@ import { collection, getDocs, doc, updateDoc } from "firebase/firestore";
 import { getFirestoreDb } from "@/lib/firebase";
 import { Users, Search, Shield, ChevronDown, RefreshCw, Mail, Calendar } from "lucide-react";
 import { toast } from "@/components/ui/toast";
+import Image from "next/image";
 
 interface UserRow {
   id: string;
@@ -16,14 +17,16 @@ interface UserRow {
   created_at?: string;
   phone?: string;
   school?: string;
+  avatar_url?: string;
 }
 
-const PLANS = ["FREE", "PRO", "PREMIUM", "ENTERPRISE"];
+const PLANS = ["FREE", "PRO", "PREMIUM", "ENTERPRISE", "B2B"];
 const PLAN_COLORS: Record<string, string> = {
   FREE: "bg-gray-100 text-gray-600",
   PRO: "bg-blue-100 text-blue-700",
   PREMIUM: "bg-amber-100 text-amber-700",
   ENTERPRISE: "bg-purple-100 text-purple-700",
+  B2B: "bg-slate-800 text-white",
 };
 
 export default function CustomersAdminPage() {
@@ -38,8 +41,21 @@ export default function CustomersAdminPage() {
     try {
       const db = getFirestoreDb();
       const snap = await getDocs(collection(db, "profiles"));
-      const rows = snap.docs.map(d => ({ id: d.id, ...d.data() } as UserRow));
-      setUsers(rows.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || "")));
+      const rows = snap.docs.map(d => {
+        const data = d.data();
+        // Firestore Timestamp → ISO string
+        if (data.created_at && typeof data.created_at.toDate === "function") {
+          data.created_at = data.created_at.toDate().toISOString();
+        } else if (data.created_at && typeof data.created_at !== "string") {
+          data.created_at = String(data.created_at);
+        }
+        return { id: d.id, ...data } as UserRow;
+      });
+      setUsers(rows.sort((a, b) => {
+        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return bTime - aTime; // newest first
+      }));
     } catch (e) {
       console.error(e);
       toast("error", "Không thể tải danh sách người dùng.");
@@ -148,8 +164,11 @@ export default function CustomersAdminPage() {
                   <tr key={u.id} className="hover:bg-gray-50/50 transition">
                     <td className="px-4 py-3.5">
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
-                          {(u.full_name || u.email || "U").charAt(0).toUpperCase()}
+                        <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                          {u.avatar_url
+                            ? <Image src={u.avatar_url} alt={u.full_name ?? "avatar"} width={32} height={32} className="w-full h-full object-cover" unoptimized />
+                            : (u.full_name || u.email || "U").charAt(0).toUpperCase()
+                          }
                         </div>
                         <div>
                           <div className="font-semibold text-gray-700">{u.full_name || "—"}</div>

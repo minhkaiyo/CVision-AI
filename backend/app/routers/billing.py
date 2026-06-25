@@ -9,8 +9,15 @@ from typing import Optional
 from pydantic import BaseModel
 
 from app.auth import verify_user
-from app.supabase_client import get_supabase
 from app.config import settings
+from app.firebase_store import (
+    add_document,
+    get_latest_subscription,
+    get_plan,
+    query_documents,
+    upsert_profile,
+    update_document,
+)
 
 router = APIRouter(tags=["billing"])
 logger = logging.getLogger(__name__)
@@ -56,19 +63,8 @@ async def create_checkout_session(
     stripe = _get_stripe()
     frontend_url = getattr(settings, "frontend_base_url", "http://localhost:3000")
 
-    # Get or create Stripe customer for this user
-    supabase = get_supabase()
-    try:
-        sub_res = (
-            supabase.table("subscriptions")
-            .select("provider_customer_id")
-            .eq("user_id", user_id)
-            .maybe_single()
-            .execute()
-        )
-        customer_id = sub_res.data["provider_customer_id"] if sub_res.data else None
-    except Exception:
-        customer_id = None
+    sub = get_latest_subscription(user_id)
+    customer_id = sub.get("provider_customer_id") if sub else None
 
     session_params: dict = {
         "mode": "subscription",
@@ -97,7 +93,7 @@ async def stripe_webhook(
 ):
     """
     Handle Stripe webhook events.
-    Verifies the signature, then updates the Supabase subscriptions + profiles tables.
+    Verifies the signature, then updates Firebase subscription + profile records.
     """
     body = await request.body()
     webhook_secret = getattr(settings, "stripe_webhook_secret", "")
@@ -112,7 +108,6 @@ async def stripe_webhook(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Webhook error: {e}")
 
-    supabase = get_supabase()
     event_type = event["type"]
     data = event["data"]["object"]
     logger.info(f"Stripe webhook: {event_type}")
@@ -124,58 +119,65 @@ async def stripe_webhook(
         subscription_id = data.get("subscription")
 
         if user_id:
-            # Upsert subscription record
-            supabase.table("subscriptions").upsert({
-                "user_id": user_id,
-                "plan": "premium",
-                "provider": "stripe",
-                "provider_customer_id": customer_id,
-                "provider_subscription_id": subscription_id,
-                "status": "active",
-                "created_at": datetime.now(timezone.utc).isoformat(),
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }, on_conflict="user_id").execute()
+            existing = get_latest_subscription(user_id)
+            if existing:
+                update_document("subscriptions", existing["id"], {
+                    "plan": "premium",
+                    "provider": "stripe",
+                    "provider_customer_id": customer_id,
+                    "provider_subscription_id": subscription_id,
+                    "status": "active",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                })
+            else:
+                add_document("subscriptions", {
+                    "user_id": user_id,
+                    "plan": "premium",
+                    "provider": "stripe",
+                    "provider_customer_id": customer_id,
+                    "provider_subscription_id": subscription_id,
+                    "status": "active",
+                })
 
-            # Promote user plan
-            supabase.table("profiles").update({
+            upsert_profile(user_id, {
                 "plan": "premium",
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }).eq("id", user_id).execute()
+            })
 
     elif event_type in ("customer.subscription.deleted", "customer.subscription.paused"):
         subscription_id = data.get("id")
-        customer_id = data.get("customer")
         if subscription_id:
-            # Downgrade subscription
-            update_res = (
-                supabase.table("subscriptions")
-                .update({"status": "cancelled", "updated_at": datetime.now(timezone.utc).isoformat()})
-                .eq("provider_subscription_id", subscription_id)
-                .execute()
-            )
-            if update_res.data:
-                user_id = update_res.data[0].get("user_id")
-                if user_id:
-                    supabase.table("profiles").update({"plan": "free"}).eq("id", user_id).execute()
+            matches = query_documents("subscriptions", filters=[("provider_subscription_id", "==", subscription_id)], limit=1)
+            if matches:
+                sub = matches[0]
+                update_document("subscriptions", sub["id"], {
+                    "status": "cancelled",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                })
+                if sub.get("user_id"):
+                    upsert_profile(sub["user_id"], {"plan": "free"})
 
     elif event_type == "customer.subscription.updated":
         subscription_id = data.get("id")
         status = data.get("status")
         period_end = data.get("current_period_end")
         if subscription_id:
-            supabase.table("subscriptions").update({
-                "status": status,
-                "current_period_end": datetime.fromtimestamp(period_end, tz=timezone.utc).isoformat() if period_end else None,
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }).eq("provider_subscription_id", subscription_id).execute()
+            matches = query_documents("subscriptions", filters=[("provider_subscription_id", "==", subscription_id)], limit=1)
+            if matches:
+                update_document("subscriptions", matches[0]["id"], {
+                    "status": status,
+                    "current_period_end": datetime.fromtimestamp(period_end, tz=timezone.utc).isoformat() if period_end else None,
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                })
 
     elif event_type in ("invoice.payment_failed",):
         subscription_id = data.get("subscription")
         if subscription_id:
-            supabase.table("subscriptions").update({
-                "status": "past_due",
-                "updated_at": datetime.now(timezone.utc).isoformat(),
-            }).eq("provider_subscription_id", subscription_id).execute()
+            matches = query_documents("subscriptions", filters=[("provider_subscription_id", "==", subscription_id)], limit=1)
+            if matches:
+                update_document("subscriptions", matches[0]["id"], {
+                    "status": "past_due",
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                })
 
     return {"received": True}
 
@@ -185,28 +187,8 @@ async def stripe_webhook(
 @router.get("/billing/subscription")
 async def get_subscription(user_id: str = Depends(verify_user)):
     """Get current user's plan and subscription status."""
-    supabase = get_supabase()
-
-    # Get plan from profile (source of truth for enforcement)
-    try:
-        profile_res = supabase.table("profiles").select("plan").eq("id", user_id).maybe_single().execute()
-        plan = profile_res.data["plan"] if profile_res.data else "free"
-    except Exception:
-        plan = "free"
-
-    # Get subscription detail
-    try:
-        sub_res = (
-            supabase.table("subscriptions")
-            .select("status, provider, current_period_end, created_at")
-            .eq("user_id", user_id)
-            .order("created_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        sub = sub_res.data[0] if sub_res.data else {}
-    except Exception:
-        sub = {}
+    plan = get_plan(user_id)
+    sub = get_latest_subscription(user_id) or {}
 
     return {
         "plan": plan,
@@ -221,18 +203,8 @@ async def get_subscription(user_id: str = Depends(verify_user)):
 @router.post("/billing/portal")
 async def create_portal_session(user_id: str = Depends(verify_user)):
     """Create a Stripe customer portal session so user can manage their subscription."""
-    supabase = get_supabase()
-    try:
-        sub_res = (
-            supabase.table("subscriptions")
-            .select("provider_customer_id")
-            .eq("user_id", user_id)
-            .maybe_single()
-            .execute()
-        )
-        customer_id = sub_res.data["provider_customer_id"] if sub_res.data else None
-    except Exception:
-        customer_id = None
+    sub = get_latest_subscription(user_id)
+    customer_id = sub.get("provider_customer_id") if sub else None
 
     if not customer_id:
         raise HTTPException(status_code=404, detail="No Stripe customer found for this user.")

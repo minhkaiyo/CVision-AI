@@ -18,16 +18,18 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-// Lazy singleton — no throw, just init once
 function getFirebaseApp() {
   if (getApps().length) return getApp();
   return initializeApp(firebaseConfig);
 }
 
+let _authInitialized = false;
+
 export function getFirebaseAuth() {
   const auth = getAuth(getFirebaseApp());
-  if (typeof window !== "undefined") {
-    void setPersistence(auth, browserLocalPersistence).catch(() => undefined);
+  if (typeof window !== "undefined" && !_authInitialized) {
+    _authInitialized = true;
+    setPersistence(auth, browserLocalPersistence).catch(() => undefined);
   }
   return auth;
 }

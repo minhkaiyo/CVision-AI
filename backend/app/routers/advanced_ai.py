@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from app.auth import verify_user, log_usage
-from app.supabase_client import get_supabase
 import logging
 
 router = APIRouter(tags=["advanced-ai"])

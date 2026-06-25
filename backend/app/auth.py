@@ -1,87 +1,50 @@
 """Authentication and usage-limit helpers."""
 
 import logging
-from typing import Optional
 from datetime import date
+from typing import Optional
 
-from fastapi import Depends, HTTPException, Header
-from app.supabase_client import get_supabase
+from fastapi import Depends, Header, HTTPException
+
 from app.config import settings
+from app.firebase_client import get_auth
+from app.firebase_store import count_usage_today, get_plan, log_usage_event
 
 logger = logging.getLogger(__name__)
 
-# ── JWT verification ─────────────────────────────────────────────────────────
 
 async def verify_user(authorization: Optional[str] = Header(None)) -> str:
-    """
-    Verify a Supabase JWT and return the user's UUID.
-
-    In development (APP_ENV=development) with no token supplied, falls back to
-    a mock UUID so the API stays testable without a real auth session.
-
-    Priority:
-      1. Real Supabase JWT (Bearer token) — always attempted first when present.
-      2. Dev mock — only when APP_ENV != "production" AND no token provided.
-    """
+    """Verify a Firebase ID token and return the user's UID."""
     if authorization:
         token = authorization.removeprefix("Bearer ").strip()
         if token:
             try:
-                supabase = get_supabase()
-                user_response = supabase.auth.get_user(token)
-                if user_response and user_response.user:
-                    return user_response.user.id
+                decoded = get_auth().verify_id_token(token)
+                uid = decoded.get("uid")
+                if uid:
+                    return uid
                 raise HTTPException(status_code=401, detail="Invalid or expired token.")
             except HTTPException:
                 raise
-            except Exception as e:
-                logger.warning(f"JWT verification failed: {e}")
+            except Exception as exc:
+                logger.warning("Firebase token verification failed: %s", exc)
                 raise HTTPException(status_code=401, detail="Token verification failed.")
 
-    # No token supplied
     if getattr(settings, "app_env", "development") == "production":
         raise HTTPException(status_code=401, detail="Authorization header required.")
 
-    # Dev/test fallback — mock user
-    logger.debug("No auth token — using mock user ID (dev mode only)")
-    return "00000000-0000-0000-0000-000000000000"
+    logger.debug("No auth token - using mock user ID (dev mode only)")
+    return "dev-user"
 
-
-# ── Usage limits ─────────────────────────────────────────────────────────────
 
 async def check_usage_limit(user_id: str = Depends(verify_user)) -> bool:
-    """
-    Enforce per-plan usage limits.
-
-    - premium / b2b: unlimited
-    - free: 1 analysis per calendar day
-    """
-    supabase = get_supabase()
-
-    try:
-        profile_res = supabase.table("profiles").select("plan").eq("id", user_id).maybe_single().execute()
-        plan = profile_res.data["plan"] if profile_res.data else "free"
-    except Exception:
-        plan = "free"
-
+    """Enforce per-plan usage limits."""
+    plan = get_plan(user_id)
     if plan in ("premium", "b2b"):
         return True
 
-    # Free tier: check today's usage
     today = date.today().isoformat()
-    try:
-        usage_res = (
-            supabase.table("usage_logs")
-            .select("id", count="exact")
-            .eq("user_id", user_id)
-            .eq("action", "analysis")
-            .gte("created_at", today)
-            .execute()
-        )
-        count = usage_res.count if hasattr(usage_res, "count") else len(usage_res.data or [])
-    except Exception:
-        count = 0
-
+    count = count_usage_today(user_id, "analysis", today)
     if count >= 1:
         raise HTTPException(
             status_code=403,
@@ -93,11 +56,6 @@ async def check_usage_limit(user_id: str = Depends(verify_user)) -> bool:
 def log_usage(user_id: str, action: str, metadata: dict = {}) -> None:
     """Fire-and-forget usage log. Never raises."""
     try:
-        supabase = get_supabase()
-        supabase.table("usage_logs").insert({
-            "user_id": user_id,
-            "action": action,
-            "metadata": metadata,
-        }).execute()
-    except Exception as e:
-        logger.warning(f"Usage log failed (non-critical): {e}")
+        log_usage_event(user_id, action, metadata)
+    except Exception as exc:
+        logger.warning("Usage log failed (non-critical): %s", exc)

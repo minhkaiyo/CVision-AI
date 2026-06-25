@@ -32,7 +32,14 @@ function groupByDay(items: { created_at?: string }[]): DayBucket[] {
   });
   return Object.entries(map)
     .map(([date, count]) => ({ date, count }))
-    .sort((a, b) => a.date.localeCompare(b.date))
+    .sort((a, b) => {
+      // Parse "dd/mm/yyyy" → sortable date
+      const parseViDate = (s: string) => {
+        const [dd, mm, yyyy] = s.split("/");
+        return new Date(`${yyyy}-${mm}-${dd}`).getTime();
+      };
+      return parseViDate(a.date) - parseViDate(b.date);
+    })
     .slice(-14);
 }
 
@@ -49,8 +56,23 @@ export default function AnalyticsAdminPage() {
         getDocs(collection(db, "analyses")),
         getDocs(collection(db, "profiles")),
       ]);
-      setAnalyses(aSnap.docs.map(d => ({ id: d.id, ...d.data() } as AnalysisDoc)));
-      setUsers(uSnap.docs.map(d => ({ id: d.id, ...d.data() } as UserDoc)));
+      setAnalyses(aSnap.docs.map(d => {
+        const data = d.data();
+        if (data.created_at && typeof data.created_at.toDate === "function") {
+          data.created_at = data.created_at.toDate().toISOString();
+        }
+        return { id: d.id, ...data } as AnalysisDoc;
+      }));
+      setUsers(uSnap.docs.map(d => {
+        const data = d.data();
+        if (data.created_at && typeof data.created_at.toDate === "function") {
+          data.created_at = data.created_at.toDate().toISOString();
+        }
+        if (data.plan && typeof data.plan === "string") {
+          data.plan = data.plan.toUpperCase();
+        }
+        return { id: d.id, ...data } as UserDoc;
+      }));
     } catch (e) { console.error(e); }
     finally { setLoading(false); }
   };
@@ -205,6 +227,7 @@ export default function AnalyticsAdminPage() {
                 { plan: "PRO", color: "bg-blue-400", textColor: "text-blue-600" },
                 { plan: "PREMIUM", color: "bg-amber-400", textColor: "text-amber-600" },
                 { plan: "ENTERPRISE", color: "bg-purple-500", textColor: "text-purple-600" },
+                { plan: "B2B", color: "bg-slate-700", textColor: "text-slate-700" },
               ].map(({ plan, color, textColor }) => {
                 const count = users.filter(u => (u.plan || "FREE").toUpperCase() === plan).length;
                 const pct = users.length ? Math.round((count / users.length) * 100) : 0;

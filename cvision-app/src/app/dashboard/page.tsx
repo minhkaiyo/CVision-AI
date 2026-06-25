@@ -524,7 +524,7 @@ export default function DashboardHome() {
               <li className="flex items-start gap-2.5">
                 <MapPin className="w-4 h-4 text-gray-300 mt-0.5 shrink-0" />
                 <span className="text-[12.5px] text-gray-500 leading-snug">
-                  Trường ĐH Bách Khoa Hà Nội<br />Số 1, Đại Cồ Việt, Hà Nội
+                  Học viện Ngân hàng Việt Nam<br />12 Chùa Bộc, Đống Đa, Hà Nội
                 </span>
               </li>
               <li className="flex items-center gap-2.5">
@@ -546,7 +546,7 @@ export default function DashboardHome() {
         {/* Bottom strip */}
         <div className="mt-8 pt-5 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3">
           <p className="text-[11.5px] text-gray-400">
-            © 2024 CVision AI. Được xây dựng với ❤️ bởi sinh viên HUST.
+            © 2025 CVision AI. Được xây dựng với ❤️ tại Học viện Ngân hàng Việt Nam.
           </p>
           <div className="flex items-center gap-4">
             <Link href="/privacy" className="text-[11.5px] text-gray-400 hover:text-blue-500 transition">Chính Sách Bảo Mật</Link>

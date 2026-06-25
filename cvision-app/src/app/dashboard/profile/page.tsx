@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Camera, Save, Eye, EyeOff, Shield, Bell, Link2, Loader2 } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Camera, Save, Eye, EyeOff, Shield, Bell, Link2, Loader2, Upload } from "lucide-react";
+import Image from "next/image";
 import { toast } from "@/components/ui/toast";
 import {
   getProfile,
@@ -9,6 +10,7 @@ import {
   type AppUser,
   updateCurrentUserPassword,
   upsertProfile,
+  uploadAvatar,
 } from "@/lib/auth";
 
 // ── Section card ─────────────────────────────────────────────────────────────
@@ -43,6 +45,11 @@ const INPUT = "w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-2.5 t
 export default function ProfilePage() {
   const [user, setUser] = useState<AppUser | null>(null);
   const [profile, setProfile] = useState({ full_name: "", email: "", phone: "", school: "", major: "" });
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const [saving, setSaving] = useState(false);
 
   // Password change
@@ -70,6 +77,7 @@ export default function ProfilePage() {
             school: data.school ?? "",
             major: data.major ?? "",
           });
+          setAvatarUrl(data.avatar_url ?? null);
         } else {
           setProfile(p => ({ ...p, email: u.email ?? "" }));
         }
@@ -77,6 +85,32 @@ export default function ProfilePage() {
     });
     return unsub;
   }, []);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+    if (!file.type.startsWith("image/")) { toast("error", "Chỉ chấp nhận file ảnh."); return; }
+    if (file.size > 5 * 1024 * 1024) { toast("error", "Ảnh không được vượt quá 5MB."); return; }
+    // Show preview immediately
+    const reader = new FileReader();
+    reader.onload = (ev) => setAvatarPreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+    // Upload
+    setUploadingAvatar(true);
+    setUploadProgress(0);
+    try {
+      const url = await uploadAvatar(user.uid, file, (pct) => setUploadProgress(pct));
+      setAvatarUrl(url);
+      setAvatarPreview(null);
+      toast("success", "Đã cập nhật ảnh đại diện!");
+    } catch {
+      setAvatarPreview(null);
+      toast("error", "Upload ảnh thất bại. Thử lại sau.");
+    } finally {
+      setUploadingAvatar(false);
+      if (avatarInputRef.current) avatarInputRef.current.value = "";
+    }
+  };
 
   const saveProfile = async () => {
     if (!user) return;
@@ -125,14 +159,59 @@ export default function ProfilePage() {
       <Card title="Thông tin tài khoản" icon={Camera}>
         {/* Avatar */}
         <div className="flex items-center gap-4 pb-5 border-b border-gray-100">
-          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-2xl font-bold text-white shrink-0 shadow-md">
-            {profile.full_name ? profile.full_name.charAt(0).toUpperCase() : "U"}
+          <div className="relative shrink-0">
+            <div className="w-16 h-16 rounded-2xl overflow-hidden shadow-md bg-gradient-to-br from-blue-500 to-indigo-600">
+              {(avatarPreview || avatarUrl) ? (
+                <Image
+                  src={avatarPreview ?? avatarUrl!}
+                  alt="Avatar"
+                  width={64}
+                  height={64}
+                  className="w-full h-full object-cover"
+                  unoptimized
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center text-2xl font-bold text-white">
+                  {profile.full_name ? profile.full_name.charAt(0).toUpperCase() : "U"}
+                </div>
+              )}
+            </div>
+            {/* Upload overlay button */}
+            <button
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={uploadingAvatar}
+              className="absolute -bottom-1.5 -right-1.5 w-7 h-7 bg-blue-500 hover:bg-blue-600 text-white rounded-full flex items-center justify-center shadow-lg transition disabled:opacity-60"
+              title="Đổi ảnh đại diện"
+            >
+              {uploadingAvatar
+                ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                : <Camera className="w-3.5 h-3.5" />
+              }
+            </button>
+            {/* Progress ring while uploading */}
+            {uploadingAvatar && (
+              <div className="absolute inset-0 rounded-2xl flex items-center justify-center bg-black/40">
+                <span className="text-white text-[11px] font-bold">{uploadProgress}%</span>
+              </div>
+            )}
+            <input
+              ref={avatarInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleAvatarChange}
+            />
           </div>
           <div>
             <div className="font-bold text-gray-800 text-[16px]">{profile.full_name || "Chưa đặt tên"}</div>
             <div className="text-gray-500 text-[13px] mt-0.5">{profile.email}</div>
-            <button className="text-[12px] font-semibold text-blue-500 hover:text-blue-700 mt-2 transition">
-              Đổi ảnh đại diện →
+            <button
+              onClick={() => avatarInputRef.current?.click()}
+              disabled={uploadingAvatar}
+              className="flex items-center gap-1 text-[12px] font-semibold text-blue-500 hover:text-blue-700 mt-2 transition disabled:opacity-50"
+            >
+              <Upload className="w-3 h-3" />
+              {uploadingAvatar ? "Đang tải lên..." : "Đổi ảnh đại diện"}
             </button>
           </div>
         </div>

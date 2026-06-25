@@ -16,11 +16,12 @@ interface SubRow {
   updated_at?: string;
 }
 
-const PLAN_PRICE: Record<string, number> = { PRO: 199000, PREMIUM: 399000, ENTERPRISE: 999000 };
+const PLAN_PRICE: Record<string, number> = { PRO: 49000, PREMIUM: 99000, ENTERPRISE: 299000, B2B: 0 };
 const PLAN_COLORS: Record<string, string> = {
   PRO: "bg-blue-100 text-blue-700 border-blue-200",
   PREMIUM: "bg-amber-100 text-amber-700 border-amber-200",
   ENTERPRISE: "bg-purple-100 text-purple-700 border-purple-200",
+  B2B: "bg-slate-800 text-white border-slate-700",
 };
 
 export default function SubscriptionsAdminPage() {
@@ -34,8 +35,20 @@ export default function SubscriptionsAdminPage() {
     try {
       const db = getFirestoreDb();
       const snap = await getDocs(collection(db, "profiles"));
-      const all = snap.docs.map(d => ({ id: d.id, ...d.data() } as SubRow));
-      setSubs(all.filter(u => u.plan && u.plan !== "FREE" && u.plan !== "free"));
+      const all = snap.docs.map(d => {
+        const data = d.data();
+        if (data.created_at && typeof data.created_at.toDate === "function") {
+          data.created_at = data.created_at.toDate().toISOString();
+        }
+        if (data.updated_at && typeof data.updated_at.toDate === "function") {
+          data.updated_at = data.updated_at.toDate().toISOString();
+        }
+        if (data.plan && typeof data.plan === "string") {
+          data.plan = data.plan.toUpperCase();
+        }
+        return { id: d.id, ...data } as SubRow;
+      });
+      setSubs(all.filter(u => u.plan && u.plan !== "FREE"));
     } catch { toast("error", "Không thể tải danh sách."); }
     finally { setLoading(false); }
   };
@@ -78,7 +91,7 @@ export default function SubscriptionsAdminPage() {
         {[
           { label: "Tổng Premium", value: subs.length, icon: Users, color: "text-amber-500", bg: "bg-amber-50 border-amber-100" },
           { label: "Doanh thu ước tính", value: `${(totalRevenue / 1000).toFixed(0)}K đ`, icon: TrendingUp, color: "text-purple-500", bg: "bg-purple-50 border-purple-100" },
-          { label: "Gói phổ biến", value: subs.length ? (["PRO","PREMIUM","ENTERPRISE"].sort((a,b) => subs.filter(s=>s.plan===b).length - subs.filter(s=>s.plan===a).length)[0]) : "—", icon: Star, color: "text-blue-500", bg: "bg-blue-50 border-blue-100" },
+      { label: "Gói phổ biến", value: subs.length ? (["PRO","PREMIUM","ENTERPRISE","B2B"].sort((a,b) => subs.filter(s=>s.plan===b).length - subs.filter(s=>s.plan===a).length)[0]) : "—", icon: Star, color: "text-blue-500", bg: "bg-blue-50 border-blue-100" },
         ].map(c => (
           <div key={c.label} className={`rounded-2xl border p-5 ${c.bg}`}>
             <div className="flex items-center gap-3 mb-2">
@@ -92,13 +105,13 @@ export default function SubscriptionsAdminPage() {
 
       {/* Breakdown by plan */}
       <div className="grid grid-cols-3 gap-4">
-        {["PRO", "PREMIUM", "ENTERPRISE"].map(plan => {
+        {["PRO", "PREMIUM", "ENTERPRISE", "B2B"].map(plan => {
           const count = subs.filter(s => s.plan?.toUpperCase() === plan).length;
           return (
             <div key={plan} className={`rounded-xl border p-4 ${PLAN_COLORS[plan]}`}>
               <div className="font-bold text-sm">{plan}</div>
               <div className="text-2xl font-black mt-1">{count}</div>
-              <div className="text-xs opacity-70">{(PLAN_PRICE[plan]/1000).toFixed(0)}K đ/tháng</div>
+              <div className="text-xs opacity-70">{plan === "B2B" ? "Liên hệ" : `${(PLAN_PRICE[plan]/1000).toFixed(0)}K đ/tháng`}</div>
             </div>
           );
         })}

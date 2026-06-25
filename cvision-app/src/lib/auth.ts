@@ -6,7 +6,7 @@ import {
   onAuthStateChanged,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
-  signInWithRedirect,
+  signInWithPopup,
   signOut,
   updatePassword,
   updateProfile,
@@ -17,6 +17,7 @@ import {
   serverTimestamp,
   setDoc,
 } from "firebase/firestore";
+import { uploadToCloudinary } from "./cloudinary";
 
 import { getFirebaseAuth, getFirestoreDb, getGoogleProvider } from "./firebase";
 
@@ -33,6 +34,7 @@ export type ProfileRecord = {
   major?: string | null;
   plan?: string | null;
   role?: string | null;
+  avatar_url?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
 };
@@ -79,26 +81,21 @@ export async function signUpWithEmail(email: string, password: string, fullName:
 }
 
 /**
- * Initiates Google Sign-In via redirect (avoids COOP popup issues in Next.js).
- * After redirect returns to the app, call getGoogleRedirectResult() in a useEffect.
+ * Initiates Google Sign-In via popup.
+ * Returns the signed-in user on success, or an error if popup was blocked/closed.
  */
 export async function signInWithGoogle() {
   try {
-    await signInWithRedirect(getFirebaseAuth(), getGoogleProvider());
-    return { data: null, error: null };
+    const result = await signInWithPopup(getFirebaseAuth(), getGoogleProvider());
+    return { data: result, error: null };
   } catch (error) {
     return { data: null, error };
   }
 }
 
-/** Call this once on app load to resolve the pending Google redirect. */
+/** No-op kept for backward compatibility — popup flow doesn't need redirect result. */
 export async function getGoogleRedirectResult() {
-  try {
-    const result = await getRedirectResult(getFirebaseAuth());
-    return { data: result, error: null };
-  } catch (error) {
-    return { data: null, error };
-  }
+  return { data: null, error: null };
 }
 
 export async function signOutAppUser() {
@@ -144,4 +141,19 @@ export async function upsertProfile(userId: string, payload: Partial<ProfileReco
     },
     { merge: true }
   );
+}
+
+/**
+ * Upload avatar to Cloudinary and save the download URL to Firestore profile.
+ * Returns the public secure_url.
+ */
+export async function uploadAvatar(
+  userId: string,
+  file: File,
+  onProgress?: (pct: number) => void
+): Promise<string> {
+  const result = await uploadToCloudinary(file, `avatars/${userId}`, onProgress);
+  const url = result.secure_url;
+  await upsertProfile(userId, { avatar_url: url } as Partial<ProfileRecord> & { avatar_url: string });
+  return url;
 }

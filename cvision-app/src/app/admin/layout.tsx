@@ -12,6 +12,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useEffect, useRef } from "react";
 import { toast } from "@/components/ui/toast";
 import { getProfile, onAppAuthStateChange, signOutAppUser } from "@/lib/auth";
+import { useAdminGuard } from "@/lib/use-admin-guard";
 
 // ── UserMenu ───────────────────────────────────────────────────────────────────
 
@@ -279,6 +280,22 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { loading, authorized } = useAdminGuard();
+
+  if (loading) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[#f5f7fb]">
+        <div className="flex flex-col items-center gap-3">
+          <div className="w-8 h-8 border-2 border-blue-200 border-t-blue-500 rounded-full animate-spin" />
+          <p className="text-sm text-gray-400">Đang xác thực quyền truy cập...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!authorized) {
+    return null; // router.replace() đang chạy, không render gì
+  }
 
   return (
     <div className="flex h-screen bg-[#f5f7fb] font-inter overflow-hidden">

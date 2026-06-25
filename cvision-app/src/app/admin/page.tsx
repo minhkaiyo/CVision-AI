@@ -11,6 +11,7 @@ import {
   Search, RefreshCw, ArrowUpRight, Loader2,
 } from "lucide-react";
 import Link from "next/link";
+import Image from "next/image";
 
 interface UserRow {
   id: string;
@@ -19,6 +20,7 @@ interface UserRow {
   plan?: string;
   created_at?: string;
   role?: string;
+  avatar_url?: string;
 }
 
 interface Metrics {
@@ -29,9 +31,10 @@ interface Metrics {
 }
 
 const PLAN_PRICE: Record<string, number> = {
-  PRO: 199000,
-  PREMIUM: 399000,
-  ENTERPRISE: 999000,
+  PRO: 49000,
+  PREMIUM: 99000,
+  ENTERPRISE: 299000,
+  B2B: 0,
 };
 
 export default function AdminPage() {
@@ -47,10 +50,22 @@ export default function AdminPage() {
 
       // Count all users
       const usersSnap = await getDocs(collection(db, "profiles"));
-      const allUsers = usersSnap.docs.map(d => ({ id: d.id, ...d.data() } as UserRow));
+      const allUsers = usersSnap.docs.map(d => {
+        const data = d.data();
+        // Normalize Firestore Timestamp → ISO string
+        if (data.created_at && typeof data.created_at.toDate === "function") {
+          data.created_at = data.created_at.toDate().toISOString();
+        }
+        // Normalize plan to uppercase
+        if (data.plan && typeof data.plan === "string") {
+          data.plan = data.plan.toUpperCase();
+        }
+        // avatar_url is already a string URL from Cloudinary — no transform needed
+        return { id: d.id, ...data } as UserRow;
+      });
 
-      // Count premium
-      const premiumUsers = allUsers.filter(u => u.plan && u.plan !== "FREE" && u.plan !== "free");
+      // Count premium (plan != "FREE" after normalization)
+      const premiumUsers = allUsers.filter(u => u.plan && u.plan !== "FREE");
 
       // Count analyses
       let analysesCount = 0;
@@ -68,7 +83,11 @@ export default function AdminPage() {
         analyses_count: analysesCount,
         total_revenue_vnd: revenue,
       });
-      setUsers(allUsers.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || "")));
+      setUsers(allUsers.sort((a, b) => {
+        const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return bTime - aTime;
+      }));
     } catch (e) {
       console.error("Admin data fetch error:", e);
     } finally {
@@ -199,8 +218,11 @@ export default function AdminPage() {
             ) : (
               filtered.slice(0, 8).map((u) => (
                 <div key={u.id} className="flex items-center gap-4 p-4 hover:bg-gray-50/50 transition">
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
-                    {(u.full_name || u.email || "U").charAt(0).toUpperCase()}
+                  <div className="w-9 h-9 rounded-full overflow-hidden bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
+                    {u.avatar_url
+                      ? <Image src={u.avatar_url} alt={u.full_name ?? "avatar"} width={36} height={36} className="w-full h-full object-cover" unoptimized />
+                      : (u.full_name || u.email || "U").charAt(0).toUpperCase()
+                    }
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="text-[13px] font-semibold text-gray-700 truncate">{u.full_name || "—"}</div>

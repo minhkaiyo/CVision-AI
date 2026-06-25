@@ -330,6 +330,11 @@ class Settings(BaseSettings):
     stripe_price_monthly: str = ""
     stripe_price_yearly: str = ""
 
+    # Firebase
+    firebase_project_id: str = ""
+    firebase_storage_bucket: str = ""
+    firebase_service_account_json: str = ""
+
     def get_effective_api_key(self) -> str:
         """Get the effective API key with config file fallback.
 

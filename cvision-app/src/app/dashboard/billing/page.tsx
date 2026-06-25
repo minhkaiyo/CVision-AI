@@ -3,12 +3,269 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { CheckCircle2, CreditCard, Loader2, Sparkles, X, ExternalLink, ShieldCheck } from "lucide-react";
-import { apiGetSubscription, apiCreateCheckout, apiCreatePortalSession } from "@/lib/api";
+import {
+  CheckCircle2, CreditCard, Loader2, Sparkles, X,
+  ExternalLink, ShieldCheck, Zap, Crown, Building2, Star,
+} from "lucide-react";
+import { apiGetSubscription, apiCreatePortalSession } from "@/lib/api";
 import { toast } from "@/components/ui/toast";
+import { SePayModal } from "@/components/SePayModal";
+
+// ── Plan definitions ──────────────────────────────────────────────────────────
+
+type PlanId = "free" | "pro" | "premium" | "enterprise" | "b2b";
+
+interface PlanDef {
+  id: PlanId;
+  label: string;
+  price: number | null;      // null = contact
+  priceYear?: number | null;
+  yearDiscount?: string;
+  icon: React.ElementType;
+  color: string;             // tailwind gradient/text
+  badge?: string;
+  checkoutKey?: string;      // Stripe price key
+  checkoutKeyYear?: string;
+  features: { text: string; included: boolean; highlight?: boolean }[];
+}
+
+const PLANS: PlanDef[] = [
+  {
+    id: "free",
+    label: "Free",
+    price: 0,
+    icon: Star,
+    color: "text-gray-600",
+    features: [
+      { text: "1 phân tích CV / ngày", included: true },
+      { text: "Chấm điểm ATS + từ khóa", included: true },
+      { text: "Báo cáo điểm cơ bản", included: true },
+      { text: "Phân tích ATS không giới hạn", included: false },
+      { text: "Tạo phiên bản CV tối ưu (AI diff)", included: false },
+      { text: "Giả lập HR & Dự đoán xác suất", included: false },
+      { text: "Xuất PDF/DOCX chuẩn ATS", included: false },
+      { text: "Cover Letter Generator", included: false },
+      { text: "Ưu tiên xử lý", included: false },
+    ],
+  },
+  {
+    id: "pro",
+    label: "Pro",
+    price: 49000,
+    priceYear: 470000,
+    yearDiscount: "Giảm 20%",
+    icon: Zap,
+    color: "text-blue-600",
+    checkoutKey: "pro_monthly",
+    checkoutKeyYear: "pro_yearly",
+    features: [
+      { text: "10 phân tích CV / ngày", included: true },
+      { text: "Chấm điểm ATS + từ khóa", included: true },
+      { text: "Báo cáo điểm đầy đủ 6 tiêu chí", included: true },
+      { text: "Phân tích ATS không giới hạn", included: true, highlight: true },
+      { text: "Tạo phiên bản CV tối ưu (AI diff)", included: true, highlight: true },
+      { text: "Giả lập HR & Dự đoán xác suất", included: false },
+      { text: "Xuất PDF/DOCX chuẩn ATS", included: true },
+      { text: "Cover Letter Generator", included: false },
+      { text: "Ưu tiên xử lý", included: false },
+    ],
+  },
+  {
+    id: "premium",
+    label: "Premium",
+    price: 99000,
+    priceYear: 950000,
+    yearDiscount: "Giảm 20%",
+    icon: Sparkles,
+    color: "text-amber-500",
+    badge: "Phổ biến nhất",
+    checkoutKey: "premium_monthly",
+    checkoutKeyYear: "premium_yearly",
+    features: [
+      { text: "Phân tích CV không giới hạn", included: true },
+      { text: "Chấm điểm ATS + từ khóa", included: true },
+      { text: "Báo cáo điểm đầy đủ 6 tiêu chí", included: true },
+      { text: "Phân tích ATS không giới hạn", included: true, highlight: true },
+      { text: "Tạo phiên bản CV tối ưu (AI diff)", included: true, highlight: true },
+      { text: "Giả lập HR & Dự đoán xác suất", included: true, highlight: true },
+      { text: "Xuất PDF/DOCX chuẩn ATS", included: true },
+      { text: "Cover Letter Generator", included: true, highlight: true },
+      { text: "Ưu tiên xử lý", included: false },
+    ],
+  },
+  {
+    id: "enterprise",
+    label: "Enterprise",
+    price: 299000,
+    priceYear: 2900000,
+    yearDiscount: "Giảm ~19%",
+    icon: Crown,
+    color: "text-purple-600",
+    checkoutKey: "enterprise_monthly",
+    checkoutKeyYear: "enterprise_yearly",
+    features: [
+      { text: "Phân tích CV không giới hạn", included: true },
+      { text: "Chấm điểm ATS + từ khóa", included: true },
+      { text: "Báo cáo điểm đầy đủ 6 tiêu chí", included: true },
+      { text: "Phân tích ATS không giới hạn", included: true },
+      { text: "Tạo phiên bản CV tối ưu (AI diff)", included: true },
+      { text: "Giả lập HR & Dự đoán xác suất", included: true },
+      { text: "Xuất PDF/DOCX chuẩn ATS", included: true },
+      { text: "Cover Letter Generator", included: true },
+      { text: "Ưu tiên xử lý (SLA 4h)", included: true, highlight: true },
+    ],
+  },
+];
+
+const B2B_FEATURES = [
+  "Tất cả tính năng Enterprise",
+  "Admin portal quản lý đội nhóm/sinh viên",
+  "Tùy chỉnh logo & tên miền riêng",
+  "API endpoint tích hợp hệ thống nội bộ",
+  "Báo cáo tổng hợp theo tổ chức",
+  "Hỗ trợ 24/7 qua Slack/email ưu tiên",
+];
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function fmt(price: number) {
+  return price.toLocaleString("vi-VN") + "₫";
+}
+
+const PLAN_RANK: Record<string, number> = {
+  free: 0, pro: 1, premium: 2, enterprise: 3, b2b: 4,
+};
+
+function isPaidPlan(plan: string) {
+  return PLAN_RANK[plan.toLowerCase()] > 0;
+}
+
+function isAtLeast(current: string, target: string) {
+  return (PLAN_RANK[current.toLowerCase()] ?? 0) >= (PLAN_RANK[target.toLowerCase()] ?? 0);
+}
+
+// ── PlanCard ──────────────────────────────────────────────────────────────────
+
+function PlanCard({
+  plan,
+  currentPlan,
+  onUpgrade,
+  upgradingPlan,
+}: {
+  plan: PlanDef;
+  currentPlan: string;
+  onUpgrade: (key: string) => void;
+  upgradingPlan: string | null;
+}) {
+  const [yearly, setYearly] = useState(false);
+  const isCurrent = currentPlan.toLowerCase() === plan.id;
+  const isOwned = isAtLeast(currentPlan, plan.id);
+  const isPopular = plan.badge === "Phổ biến nhất";
+
+  const activeKey = yearly ? plan.checkoutKeyYear : plan.checkoutKey;
+  const isThisUpgrading = !!activeKey && upgradingPlan === activeKey;
+
+  const borderClass = isCurrent
+    ? "border-2 border-blue-400 shadow-blue-100 shadow-lg"
+    : isPopular
+    ? "border-2 border-amber-300 shadow-amber-100 shadow-md"
+    : "border border-gray-100 shadow-sm";
+
+  return (
+    <div className={`relative bg-white rounded-2xl p-6 flex flex-col ${borderClass}`}>
+      {/* Badge */}
+      {plan.badge && (
+        <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-amber-900 text-[11px] font-black px-3 py-1 rounded-full uppercase tracking-wider whitespace-nowrap">
+          {plan.badge}
+        </div>
+      )}
+      {isCurrent && (
+        <div className="absolute -top-3 right-4 bg-blue-500 text-white text-[11px] font-black px-3 py-1 rounded-full uppercase tracking-wider">
+          Đang dùng
+        </div>
+      )}
+
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-3">
+        <plan.icon className={`w-5 h-5 ${plan.color}`} />
+        <h3 className="font-bold text-gray-900 text-[16px]">{plan.label}</h3>
+      </div>
+
+      {/* Price */}
+      <div className="mb-4">
+        {plan.price === null ? (
+          <div className="text-2xl font-black text-gray-900">Liên hệ</div>
+        ) : plan.price === 0 ? (
+          <div className="text-2xl font-black text-gray-900">Miễn phí</div>
+        ) : (
+          <>
+            <div className="flex items-baseline gap-1">
+              <span className="text-2xl font-black text-gray-900">
+                {yearly && plan.priceYear ? fmt(plan.priceYear) : fmt(plan.price)}
+              </span>
+              <span className="text-gray-400 text-sm font-medium">{yearly ? "/năm" : "/tháng"}</span>
+            </div>
+            {plan.priceYear && (
+              <button
+                onClick={() => setYearly(v => !v)}
+                className={`mt-1.5 text-[11px] font-bold px-2 py-0.5 rounded-full transition ${
+                  yearly
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                }`}
+              >
+                {yearly ? `✓ Gói năm (${plan.yearDiscount})` : `Chuyển gói năm → ${plan.yearDiscount}`}
+              </button>
+            )}
+          </>
+        )}
+      </div>
+
+      {/* Features */}
+      <ul className="space-y-2.5 flex-1 mb-5">
+        {plan.features.map((f, i) => (
+          <li key={i} className={`flex items-start gap-2 text-[13px] ${f.included ? "text-gray-700" : "text-gray-300 line-through"}`}>
+            {f.included
+              ? <CheckCircle2 className={`w-4 h-4 shrink-0 mt-0.5 ${f.highlight ? "text-amber-500" : "text-emerald-500"}`} />
+              : <X className="w-4 h-4 shrink-0 mt-0.5 text-gray-200" />
+            }
+            <span className={f.highlight && f.included ? "font-semibold text-gray-800" : ""}>{f.text}</span>
+          </li>
+        ))}
+      </ul>
+
+      {/* CTA */}
+      {plan.id === "free" ? (
+        <div className="w-full text-center py-2.5 text-sm text-gray-400 bg-gray-50 rounded-xl font-medium border border-gray-100">
+          {isCurrent ? "Gói hiện tại" : "Gói mặc định"}
+        </div>
+      ) : (
+        <button
+          disabled={isThisUpgrading || isCurrent || isOwned}
+          onClick={() => {
+            const key = yearly ? plan.checkoutKeyYear : plan.checkoutKey;
+            if (key) onUpgrade(key);
+          }}
+          className={`w-full py-2.5 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 ${
+            isCurrent || isOwned
+              ? "bg-gray-100 text-gray-400 cursor-default"
+              : isPopular
+              ? "bg-amber-400 hover:bg-amber-500 text-white shadow-md shadow-amber-200"
+              : "bg-blue-500 hover:bg-blue-600 text-white shadow-md shadow-blue-200"
+          }`}
+        >
+          {isThisUpgrading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+          {isCurrent ? "Đang sử dụng" : isOwned ? "Đã bao gồm" : isThisUpgrading ? "Đang xử lý..." : "Nâng cấp"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
 
 interface SubInfo {
-  plan: "free" | "premium" | "b2b";
+  plan: string;
   status: string;
   provider?: string;
   current_period_end?: string;
@@ -17,40 +274,30 @@ interface SubInfo {
 export default function BillingPage() {
   const [sub, setSub] = useState<SubInfo | null>(null);
   const [loading, setLoading] = useState(true);
-  const [upgrading, setUpgrading] = useState(false);
+  // Track which specific plan key is being upgraded (not a shared boolean)
+  const [upgradingPlan, setUpgradingPlan] = useState<string | null>(null);
   const [openingPortal, setOpeningPortal] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [sePayPlan, setSePayPlan] = useState<string | null>(null); // open modal for this plan
 
-  // Load subscription from backend
   useEffect(() => {
+    import("@/lib/auth").then(({ onAppAuthStateChange }) => {
+      const unsub = onAppAuthStateChange((u) => {
+        if (u) { setUserId(u.uid); setUserEmail(u.email ?? null); }
+      });
+      return unsub;
+    });
+
     apiGetSubscription()
       .then(setSub)
       .catch(() => setSub({ plan: "free", status: "active" }))
       .finally(() => setLoading(false));
-
-    // Handle return from Stripe checkout
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("status") === "success") {
-      toast("success", "Nâng cấp Premium thành công! Tính năng đã được mở khóa.");
-      // Refresh sub info
-      apiGetSubscription().then(setSub).catch(() => null);
-      window.history.replaceState({}, "", "/dashboard/billing");
-    } else if (params.get("status") === "cancelled") {
-      toast("warning", "Thanh toán đã bị hủy.");
-      window.history.replaceState({}, "", "/dashboard/billing");
-    }
   }, []);
 
-  const handleUpgrade = async (plan = "premium_monthly") => {
-    setUpgrading(true);
-    try {
-      const { checkout_url } = await apiCreateCheckout(plan);
-      window.location.href = checkout_url;
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Lỗi kết nối";
-      toast("error", msg.includes("not configured") ? "Stripe chưa được cấu hình. Liên hệ admin." : msg);
-    } finally {
-      setUpgrading(false);
-    }
+  const handleUpgrade = (planKey: string) => {
+    if (!userId) { toast("error", "Vui lòng đăng nhập lại."); return; }
+    setSePayPlan(planKey); // open SePay modal
   };
 
   const handleManage = async () => {
@@ -59,12 +306,13 @@ export default function BillingPage() {
       const { portal_url } = await apiCreatePortalSession();
       window.open(portal_url, "_blank");
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : "Không thể mở cổng quản lý";
-      toast("error", msg);
+      toast("error", err instanceof Error ? err.message : "Không thể mở cổng quản lý");
     } finally {
       setOpeningPortal(false);
     }
   };
+
+  const currentPlan = sub?.plan ?? "free";
 
   if (loading) {
     return (
@@ -74,146 +322,129 @@ export default function BillingPage() {
     );
   }
 
-  const isPremium = sub?.plan === "premium" || sub?.plan === "b2b";
-
   return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500">
-      {/* Header Banner */}
-      <div className="relative w-full h-[180px] md:h-[220px] rounded-3xl overflow-hidden shadow-sm">
-        <Image src="/banner-career-growth.png" alt="Quản lý Thanh toán" fill className="object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-900/80 to-transparent flex flex-col justify-center px-8 md:px-12">
-          <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight mb-2 flex items-center gap-2">
-            <CreditCard className="w-8 h-8 text-blue-300" /> Quản lý Gói dịch vụ
+    <div className="max-w-5xl mx-auto space-y-8">
+      {/* Banner */}
+      <div className="relative w-full h-[160px] md:h-[200px] rounded-3xl overflow-hidden shadow-sm">
+        <Image src="/banner-career-growth.png" alt="Quản lý Gói dịch vụ" fill className="object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-900/80 to-transparent flex flex-col justify-center px-8">
+          <h1 className="text-3xl font-bold text-white mb-1 flex items-center gap-2">
+            <CreditCard className="w-7 h-7 text-blue-300" /> Quản lý Gói dịch vụ
           </h1>
-          <p className="text-blue-100 max-w-md text-sm md:text-base leading-relaxed">
-            Nâng cấp gói Premium để mở khóa toàn bộ sức mạnh AI, phân tích không giới hạn và xuất file PDF chuyên nghiệp.
+          <p className="text-blue-100 text-sm max-w-md">
+            Chọn gói phù hợp với mục tiêu nghề nghiệp của bạn. Hủy bất kỳ lúc nào.
           </p>
         </div>
       </div>
 
-      {/* Current Plan */}
-      <div className={`bg-white border-2 rounded-3xl p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-8 shadow-sm transition-colors ${isPremium ? 'border-amber-400/50' : 'border-gray-100'}`}>
-        <div className="flex-1">
-          <div className="flex items-center gap-3 mb-3">
-            <h2 className="text-2xl font-bold text-gray-900 capitalize flex items-center gap-2">
-              {isPremium && <Sparkles className="w-6 h-6 text-amber-500" />}
-              Gói {sub?.plan === "b2b" ? "B2B" : sub?.plan === "premium" ? "Premium" : "Free"}
-            </h2>
-            <span className={`px-3 py-1 rounded-full text-xs font-bold border tracking-wide uppercase ${
-              isPremium
-                ? "bg-amber-50 text-amber-600 border-amber-200"
-                : "bg-gray-100 text-gray-600 border-gray-200"
-            }`}>
-              {sub?.status === "active" ? "Đang hoạt động" : sub?.status ?? "Hiện tại"}
-            </span>
-          </div>
-
-          {isPremium ? (
-            <p className="text-gray-600 text-base mb-6 font-medium">
-              Bạn đang dùng gói Premium — tận hưởng tối đa sức mạnh AI phân tích CV.
+      {/* Current plan status bar */}
+      {isPaidPlan(currentPlan) && (
+        <div className="bg-white border border-gray-100 rounded-2xl p-4 flex items-center justify-between shadow-sm">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-amber-50 rounded-xl flex items-center justify-center">
+              <Sparkles className="w-5 h-5 text-amber-500" />
+            </div>
+            <div>
+              <div className="text-[13px] font-bold text-gray-800">
+                Đang dùng gói <span className="capitalize text-blue-600">{currentPlan}</span>
+              </div>
               {sub?.current_period_end && (
-                <span className="block mt-1 text-sm text-gray-500">
-                  Gia hạn vào ngày <strong className="text-gray-800">
-                    {new Date(sub.current_period_end).toLocaleDateString("vi-VN")}
-                  </strong>.
-                </span>
+                <div className="text-[11px] text-gray-400">
+                  Gia hạn vào {new Date(sub.current_period_end).toLocaleDateString("vi-VN")}
+                </div>
               )}
-            </p>
-          ) : (
-            <p className="text-gray-600 text-base mb-6 font-medium">Bạn đang sử dụng gói Miễn phí với giới hạn 1 lần phân tích CV/ngày.</p>
-          )}
+            </div>
+          </div>
+          <button
+            onClick={handleManage}
+            disabled={openingPortal}
+            className="flex items-center gap-2 px-4 py-2 text-[13px] font-semibold border border-gray-200 rounded-xl hover:bg-gray-50 transition text-gray-600"
+          >
+            {openingPortal ? <Loader2 className="w-4 h-4 animate-spin" /> : <ExternalLink className="w-4 h-4" />}
+            Quản lý gói cước
+          </button>
+        </div>
+      )}
 
-          <ul className="space-y-3">
-            {[
-              { text: "Tối đa 1 phân tích mỗi ngày", active: true, premiumOnly: false },
-              { text: "Đánh giá điểm ATS + từ khóa", active: true, premiumOnly: false },
-              { text: "Phân tích ATS không giới hạn", active: isPremium, premiumOnly: true },
-              { text: "Tạo phiên bản CV tối ưu (AI diff)", active: isPremium, premiumOnly: true },
-              { text: "Giả lập HR & Dự đoán xác suất", active: isPremium, premiumOnly: true },
-              { text: "Xuất PDF/DOCX chuẩn ATS", active: isPremium, premiumOnly: true },
-            ].map((item, i) => (
-              <li key={i} className={`flex items-center gap-3 text-[15px] font-medium ${
-                item.active ? "text-gray-800" : "text-gray-400"
-              } ${!item.active && item.premiumOnly ? "line-through opacity-70" : ""}`}>
-                {item.active
-                  ? <CheckCircle2 className="w-5 h-5 text-emerald-500 shrink-0" />
-                  : <X className="w-5 h-5 text-gray-300 shrink-0" />
-                }
-                {item.text}
-                {item.premiumOnly && !item.active && (
-                  <span className="text-[10px] font-bold text-amber-500 bg-amber-50 border border-amber-100 px-2 py-0.5 rounded-md ml-2 uppercase tracking-wider">Premium</span>
-                )}
+      {/* Plan cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+        {PLANS.map(plan => (
+          <PlanCard
+            key={plan.id}
+            plan={plan}
+            currentPlan={currentPlan}
+            onUpgrade={handleUpgrade}
+            upgradingPlan={upgradingPlan}
+          />
+        ))}
+      </div>
+
+      {/* B2B card */}
+      <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 md:p-8 flex flex-col md:flex-row items-start md:items-center justify-between gap-6 shadow-lg">
+        <div className="flex-1">
+          <div className="flex items-center gap-2 mb-2">
+            <Building2 className="w-5 h-5 text-blue-400" />
+            <h3 className="font-bold text-white text-[17px]">B2B — Dành cho Doanh nghiệp & Trường học</h3>
+          </div>
+          <p className="text-slate-400 text-sm mb-4">Giải pháp toàn diện cho HR teams, trung tâm nghề nghiệp và đại học.</p>
+          <ul className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+            {B2B_FEATURES.map((f, i) => (
+              <li key={i} className="flex items-center gap-2 text-[13px] text-slate-300">
+                <CheckCircle2 className="w-4 h-4 text-blue-400 shrink-0" />
+                {f}
               </li>
             ))}
           </ul>
         </div>
-
-        <div className="shrink-0 w-full md:w-[300px] space-y-3 bg-gray-50 p-6 rounded-2xl border border-gray-100 flex flex-col justify-center min-h-[220px]">
-          {isPremium ? (
-            <>
-              <div className="text-center mb-4">
-                <ShieldCheck className="w-12 h-12 text-emerald-500 mx-auto mb-2" />
-                <p className="text-sm font-bold text-emerald-600">Thanh toán an toàn qua Stripe</p>
-              </div>
-              <button
-                onClick={handleManage}
-                disabled={openingPortal}
-                className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-700 font-bold px-6 py-3.5 rounded-xl hover:bg-gray-50 hover:text-blue-600 transition disabled:opacity-50 shadow-sm"
-              >
-                {openingPortal ? <Loader2 className="w-5 h-5 animate-spin" /> : <ExternalLink className="w-5 h-5" />}
-                Quản lý gói cước
-              </button>
-            </>
-          ) : (
-            <>
-              <div className="text-center mb-2">
-                <span className="text-3xl font-black text-gray-900">49.000₫</span>
-                <span className="text-gray-500 font-medium">/tháng</span>
-              </div>
-              <button
-                onClick={() => handleUpgrade("premium_monthly")}
-                disabled={upgrading}
-                className="w-full flex items-center justify-center gap-2 bg-blue-600 text-white font-bold px-6 py-3.5 rounded-xl hover:bg-blue-700 hover:shadow-lg transition-all disabled:opacity-50"
-              >
-                {upgrading ? <Loader2 className="w-5 h-5 animate-spin" /> : <Sparkles className="w-5 h-5 text-amber-300" />}
-                Nâng cấp Premium
-              </button>
-              <button
-                onClick={() => handleUpgrade("premium_yearly")}
-                disabled={upgrading}
-                className="w-full flex items-center justify-center gap-2 bg-white border border-gray-200 text-gray-600 font-bold px-6 py-3 rounded-xl hover:bg-gray-50 hover:text-blue-600 transition disabled:opacity-50 text-sm shadow-sm"
-              >
-                Gói năm: 470k (Giảm 20%)
-              </button>
-              <p className="text-xs text-gray-500 font-medium text-center mt-2 flex items-center justify-center gap-1">
-                <ShieldCheck className="w-3.5 h-3.5 text-gray-400" /> Hủy bất kỳ lúc nào
-              </p>
-            </>
-          )}
+        <div className="shrink-0 flex flex-col gap-3 w-full md:w-auto">
+          <a
+            href="mailto:contact@cvision.ai?subject=B2B Plan Inquiry"
+            className="flex items-center justify-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-400 text-white font-bold rounded-xl transition text-sm whitespace-nowrap"
+          >
+            Nhận báo giá
+          </a>
+          <p className="text-[11px] text-slate-500 text-center">Phản hồi trong vòng 24h</p>
         </div>
       </div>
 
-      {/* Payment method section */}
-      {!isPremium && (
-        <div className="bg-white p-6 md:p-8 rounded-3xl border border-gray-100 shadow-sm">
-          <h3 className="font-bold text-gray-800 text-lg mb-4 flex items-center gap-2">
+      {/* Payment method note */}
+      {!isPaidPlan(currentPlan) && (
+        <div className="bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+          <h3 className="font-bold text-gray-800 mb-4 flex items-center gap-2">
             <CreditCard className="w-5 h-5 text-gray-400" /> Phương thức thanh toán
           </h3>
-          <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl p-8 flex flex-col items-center text-center">
-            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center shadow-sm mb-4">
-              <CreditCard className="w-8 h-8 text-gray-400" />
-            </div>
-            <p className="text-gray-600 font-medium">Chưa có phương thức thanh toán.</p>
-            <p className="text-sm text-gray-500 mt-1">Nâng cấp Premium để thêm thẻ thanh toán an toàn qua Stripe.</p>
+          <div className="bg-gray-50 border-2 border-dashed border-gray-200 rounded-2xl p-6 flex flex-col items-center text-center">
+            <CreditCard className="w-8 h-8 text-gray-300 mb-3" />
+            <p className="text-gray-500 text-sm font-medium">Chưa có phương thức thanh toán.</p>
+            <p className="text-xs text-gray-400 mt-1">Nâng cấp để thêm thẻ an toàn qua Stripe.</p>
           </div>
         </div>
       )}
 
-      <div className="text-center pt-4">
-        <Link href="/pricing" className="inline-flex items-center gap-1 text-sm font-bold text-blue-600 hover:text-blue-700 transition hover:underline">
+      <div className="text-center pb-4 flex items-center justify-center gap-4">
+        <Link href="/pricing" className="inline-flex items-center gap-1 text-sm font-bold text-blue-600 hover:underline">
           Xem chi tiết bảng giá <ExternalLink className="w-3.5 h-3.5" />
         </Link>
+        <span className="text-gray-300">·</span>
+        <span className="text-xs text-gray-400 flex items-center gap-1">
+          <ShieldCheck className="w-3.5 h-3.5" /> Thanh toán bảo mật qua Chuyển khoản ngân hàng
+        </span>
       </div>
+
+      {/* SePay payment modal */}
+      {sePayPlan && userId && (
+        <SePayModal
+          planKey={sePayPlan}
+          userId={userId}
+          userEmail={userEmail}
+          onClose={() => setSePayPlan(null)}
+          onSuccess={(plan) => {
+            setSePayPlan(null);
+            setSub({ plan, status: "active" });
+            toast("success", `🎉 Gói ${plan.toUpperCase()} đã được kích hoạt!`);
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -6,8 +6,8 @@ from pydantic import BaseModel
 import logging
 
 from app.auth import verify_user, log_usage
-from app.supabase_client import get_supabase
 from app.database import db as local_db
+from app.firebase_store import add_document, delete_document, get_document, get_plan, query_documents
 
 router = APIRouter(tags=["cv-versions"])
 logger = logging.getLogger(__name__)
@@ -17,10 +17,8 @@ logger = logging.getLogger(__name__)
 
 def _check_premium(user_id: str) -> bool:
     """Return True if user has premium/b2b plan, False for free."""
-    supabase = get_supabase()
     try:
-        res = supabase.table("profiles").select("plan").eq("id", user_id).maybe_single().execute()
-        plan = res.data["plan"] if res.data else "free"
+        plan = get_plan(user_id)
         return plan in ("premium", "b2b")
     except Exception:
         return False
@@ -55,7 +53,6 @@ async def generate_cv_version(
     For free users: returns the analysis suggestions as lightweight diff items
     (no LLM improvement, no export).
     """
-    supabase = get_supabase()
     is_premium = _check_premium(user_id)
 
     # ── Premium path: full Resume-Matcher pipeline ────────────────────────────
@@ -118,7 +115,7 @@ async def generate_cv_version(
             # Calculate human-readable diff summary
             diff_summary, diff_changes = calculate_resume_diff(original_data, improved_data)
 
-            # Persist CV version to Supabase
+            # Persist CV version to Firestore
             version_data = {
                 "user_id": user_id,
                 "resume_id": req.resume_id,
@@ -131,8 +128,8 @@ async def generate_cv_version(
                 "diff_items": [c.model_dump() if hasattr(c, "model_dump") else dict(c) for c in (diff_changes or [])],
                 "status": "ready",
             }
-            res = supabase.table("cv_versions").insert(version_data).execute()
-            cv_version_id = res.data[0]["id"] if res.data else None
+            res = add_document("cv_versions", version_data)
+            cv_version_id = res["id"]
 
             log_usage(user_id, "generate_version", {"resume_id": req.resume_id, "job_id": req.job_id})
 
@@ -155,8 +152,7 @@ async def generate_cv_version(
         analysis_data = {}
         if req.analysis_id:
             try:
-                a_res = supabase.table("analyses").select("suggestions, total_score").eq("id", req.analysis_id).maybe_single().execute()
-                analysis_data = a_res.data or {}
+                analysis_data = get_document("analyses", req.analysis_id) or {}
             except Exception:
                 pass
 
@@ -182,8 +178,8 @@ async def generate_cv_version(
             "diff_items": diff_items,
             "status": "draft",
         }
-        res = supabase.table("cv_versions").insert(version_data).execute()
-        cv_version_id = res.data[0]["id"] if res.data else None
+        res = add_document("cv_versions", version_data)
+        cv_version_id = res["id"]
 
         return {
             "status": "success",
@@ -199,40 +195,32 @@ async def generate_cv_version(
 @router.get("/cv-versions")
 async def list_cv_versions(user_id: str = Depends(verify_user)):
     """List all CV versions for current user."""
-    supabase = get_supabase()
-    res = (
-        supabase.table("cv_versions")
-        .select("id, title, target_role, status, created_at, diff_items")
-        .eq("user_id", user_id)
-        .order("created_at", desc=True)
-        .limit(30)
-        .execute()
+    rows = query_documents(
+        "cv_versions",
+        filters=[("user_id", "==", user_id)],
+        order_by="created_at",
+        descending=True,
+        limit=30,
     )
-    return {"cv_versions": res.data or []}
+    return {"cv_versions": rows}
 
 
 @router.get("/cv-versions/{id}")
 async def get_cv_version(id: str, user_id: str = Depends(verify_user)):
     """Get full CV version by ID."""
-    supabase = get_supabase()
-    res = (
-        supabase.table("cv_versions")
-        .select("*")
-        .eq("id", id)
-        .eq("user_id", user_id)
-        .maybe_single()
-        .execute()
-    )
-    if not res.data:
+    data = get_document("cv_versions", id)
+    if not data or data.get("user_id") != user_id:
         raise HTTPException(status_code=404, detail="CV version not found")
-    return res.data
+    return data
 
 
 @router.delete("/cv-versions/{id}")
 async def delete_cv_version(id: str, user_id: str = Depends(verify_user)):
     """Delete a CV version."""
-    supabase = get_supabase()
-    supabase.table("cv_versions").delete().eq("id", id).eq("user_id", user_id).execute()
+    data = get_document("cv_versions", id)
+    if not data or data.get("user_id") != user_id:
+        raise HTTPException(status_code=404, detail="CV version not found")
+    delete_document("cv_versions", id)
     return {"status": "deleted"}
 
 
@@ -247,22 +235,14 @@ async def export_cv_pdf(id: str, user_id: str = Depends(verify_user)):
     if not _check_premium(user_id):
         raise HTTPException(status_code=403, detail="PDF export requires Premium plan.")
 
-    supabase = get_supabase()
-    res = (
-        supabase.table("cv_versions")
-        .select("id, optimized_data, resume_id")
-        .eq("id", id)
-        .eq("user_id", user_id)
-        .maybe_single()
-        .execute()
-    )
-    if not res.data:
+    data = get_document("cv_versions", id)
+    if not data or data.get("user_id") != user_id:
         raise HTTPException(status_code=404, detail="CV version not found")
 
     # Use Resume-Matcher PDF renderer (Playwright renders /print/resumes/{resume_id})
     try:
         from app.pdf import render_resume_pdf
-        resume_id = res.data.get("resume_id")
+        resume_id = data.get("resume_id")
         if not resume_id:
             raise HTTPException(status_code=422, detail="No resume_id linked to this CV version.")
 

@@ -6,8 +6,9 @@ import logging
 
 from app.services.parser import parse_document, parse_resume_to_json
 from app.services.improver import extract_job_keywords
-from app.supabase_client import get_supabase
+from app.services.layout_analyzer import analyze_document_layout, layout_to_score_inputs
 from app.auth import verify_user, check_usage_limit, log_usage
+from app.firebase_store import add_document, delete_document, get_document, query_documents
 from app.llm import complete_json
 
 router = APIRouter(tags=["analyses"])
@@ -35,83 +36,258 @@ def _keyword_overlap(resume_text: str, jd: str) -> tuple[list[str], list[str]]:
     return matched[:30], missing[:20]
 
 
-def calculate_ats_score(parsed_data: dict, resume_text: str, jd: str) -> dict:
-    """Deterministic ATS scoring based on resume structure and JD keyword overlap."""
+def _detect_cv_quality(parsed_data: dict, resume_text: str) -> dict:
+    """
+    Detect whether the uploaded content is actually a CV/resume.
+    Returns a quality assessment with penalty multiplier.
+
+    A real CV should have:
+    - Sufficient text length (> 150 words)
+    - At least one of: work experience, education, skills
+    - Personal contact info (email or phone)
+    - Recognizable CV structure keywords
+    """
+    import re
+
+    issues = []
+    penalty = 0
+
+    # 1. Text length check — penalty tiers but not too harsh for short structured CVs
+    word_count = len(resume_text.split()) if resume_text else 0
+    if word_count < 30:
+        issues.append("not_enough_text")
+        penalty += 60  # Very likely not a CV (image, blank page, etc.)
+    elif word_count < 60:
+        issues.append("very_short")
+        penalty += 30
+    elif word_count < 100:
+        issues.append("short_content")
+        penalty += 10
+
+    # 2. Structural section detection
+    text_lower = resume_text.lower() if resume_text else ""
+    cv_section_keywords = [
+        "experience", "education", "skills", "work", "employment",
+        "kinh nghiệm", "học vấn", "kỹ năng", "làm việc", "summary",
+        "objective", "profile", "projects", "dự án", "certification",
+        "chứng chỉ", "achievement", "thành tích", "contact", "liên hệ",
+    ]
+    found_sections = sum(1 for kw in cv_section_keywords if kw in text_lower)
+
+    if found_sections == 0:
+        issues.append("no_cv_sections")
+        penalty += 40
+    elif found_sections < 2:
+        issues.append("few_cv_sections")
+        penalty += 20
+
+    # 3. Structured data check
+    has_work = bool(parsed_data.get("workExperience"))
+    has_edu = bool(parsed_data.get("education"))
+    has_skills = bool(
+        parsed_data.get("additional", {}).get("technicalSkills")
+        if isinstance(parsed_data.get("additional"), dict) else False
+    )
+    has_contact = bool(
+        parsed_data.get("personalInfo", {}).get("email")
+        or parsed_data.get("personalInfo", {}).get("phone")
+        if isinstance(parsed_data.get("personalInfo"), dict) else False
+    )
+
+    structured_sections = sum([has_work, has_edu, has_skills, has_contact])
+    if structured_sections == 0:
+        issues.append("no_structured_data")
+        penalty += 25
+
+    # 4. Contact info check (email pattern)
+    has_email = bool(re.search(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}", resume_text or ""))
+    if not has_email and word_count > 50:
+        issues.append("no_email")
+        penalty += 10
+
+    # 5. Detect if it's clearly not a resume (random text, pure image, etc.)
+    # Real CVs tend to have name-like patterns, dates, and structured content
+    has_date = bool(re.search(r"\b(19|20)\d{2}\b", resume_text or ""))
+    if not has_date and word_count > 100:
+        issues.append("no_dates")
+        penalty += 10
+
+    is_valid_cv = penalty < 50
+    penalty = min(penalty, 90)  # Cap at 90 so score never goes to 0 for borderline cases
+
+    return {
+        "is_valid_cv": is_valid_cv,
+        "word_count": word_count,
+        "found_sections": found_sections,
+        "structured_sections": structured_sections,
+        "issues": issues,
+        "penalty_pct": penalty,  # 0-90, applied as multiplier to all scores
+    }
+
+
+def calculate_ats_score(parsed_data: dict, resume_text: str, jd: str, layout_inputs: dict | None = None) -> dict:
+    """
+    Deterministic ATS scoring with CV validation.
+
+    Scoring is penalty-first: starts from earned points, not a generous baseline.
+    Non-CV content (images, random text) gets heavily penalized.
+    """
+    import re
+
+    # Step 0: Validate CV quality
+    quality = _detect_cv_quality(parsed_data, resume_text)
+    penalty_multiplier = 1.0 - (quality["penalty_pct"] / 100.0)
+
     matched, missing = _keyword_overlap(resume_text, jd)
 
-    # Section completeness check
-    sections_present = sum([
-        bool(parsed_data.get("workExperience")),
-        bool(parsed_data.get("education")),
-        bool(parsed_data.get("additional", {}).get("technicalSkills") if isinstance(parsed_data.get("additional"), dict) else False),
-        bool(parsed_data.get("personalInfo", {}).get("email") if isinstance(parsed_data.get("personalInfo"), dict) else False),
-        bool(parsed_data.get("personalInfo", {}).get("phone") if isinstance(parsed_data.get("personalInfo"), dict) else False),
-    ])
-    layout_score = min(60 + sections_present * 8, 100)
+    # ── Section completeness (0-based, no freebie) ───────────────────────────
+    has_work = bool(parsed_data.get("workExperience"))
+    has_edu = bool(parsed_data.get("education"))
+    has_skills = bool(
+        parsed_data.get("additional", {}).get("technicalSkills")
+        if isinstance(parsed_data.get("additional"), dict) else False
+    )
+    has_email = bool(
+        parsed_data.get("personalInfo", {}).get("email")
+        if isinstance(parsed_data.get("personalInfo"), dict) else False
+    )
+    has_phone = bool(
+        parsed_data.get("personalInfo", {}).get("phone")
+        if isinstance(parsed_data.get("personalInfo"), dict) else False
+    )
 
-    # Keyword score based on ratio matched/total JD keywords
+    sections_present = sum([has_work, has_edu, has_skills, has_email, has_phone])
+
+    # ── Layout score ─────────────────────────────────────────────────────────
+    # Use layout analyzer result if available (much more accurate than heuristics)
+    if layout_inputs and layout_inputs.get("layout_from_analysis"):
+        layout_score = layout_inputs["layout_score_override"]
+        # Merge detected sections from layout analyzer
+        layout_sections = set(layout_inputs.get("detected_sections_layout", []))
+        if layout_sections:
+            sections_present = max(sections_present, len(layout_sections))
+        # Add layout warnings to quality issues
+        layout_warnings = layout_inputs.get("layout_warnings", [])
+        if "multi_column_layout" in layout_warnings:
+            quality["issues"].append("multi_column_detected")
+            quality["penalty_pct"] = min(quality["penalty_pct"] + 10, 90)
+            penalty_multiplier = 1.0 - (quality["penalty_pct"] / 100.0)
+        if "not_a_cv" in layout_warnings:
+            quality["is_valid_cv"] = False
+            quality["penalty_pct"] = min(quality["penalty_pct"] + 40, 90)
+            penalty_multiplier = 1.0 - (quality["penalty_pct"] / 100.0)
+    else:
+        # Fallback: section-based layout score (original heuristic)
+        word_count = quality["word_count"]
+        format_bonus = min(20, max(0, (word_count - 100) // 20))
+        layout_score = min(sections_present * 16 + format_bonus, 100)
+
+    # ── Keyword score (0-based) ──────────────────────────────────────────────
     total_jd_kw = len(matched) + len(missing)
-    keyword_score = int((len(matched) / max(total_jd_kw, 1)) * 100) if total_jd_kw else 60
+    if total_jd_kw > 0:
+        keyword_score = int((len(matched) / total_jd_kw) * 100)
+    else:
+        # No JD provided: score based purely on CV content richness
+        # More sections + longer text = more likely to contain relevant keywords
+        keyword_score = min(sections_present * 10 + min(word_count // 30, 20), 60)
 
-    # Experience quantification (look for numbers in work bullets)
-    import re
+    # ── Experience quantification ────────────────────────────────────────────
     work_text = " ".join(
         str(b) for exp in (parsed_data.get("workExperience") or [])
         for b in (exp.get("description") or [])
     )
-    has_metrics = bool(re.search(r"\d+\s*(%|x|times|hours?|people|team|million|k\b)", work_text, re.I))
-    achievement_score = 75 if has_metrics else 50
+    has_metrics = bool(re.search(
+        r"\d+\s*(%|x|times|hours?|people|team|million|k\b|,\d{3}|\$|vnd|tỷ|triệu)",
+        work_text, re.I | re.UNICODE
+    ))
+    num_bullets = len([b for exp in (parsed_data.get("workExperience") or [])
+                       for b in (exp.get("description") or []) if b])
 
-    # Content score — basic heuristic
-    content_score = min(50 + sections_present * 7 + (10 if has_metrics else 0), 100)
+    # Achievement: 0-based, requires actual work experience
+    if not has_work:
+        achievement_score = 0
+    elif has_metrics:
+        achievement_score = min(60 + min(num_bullets * 3, 25), 90)
+    else:
+        achievement_score = min(20 + min(num_bullets * 4, 30), 55)
 
-    # ATS platform scores — slight variance around ats_score
-    ats_base = min(40 + keyword_score // 2, 95)
-    platform_scores = {
-        "workday": min(ats_base + 5, 100),
-        "taleo": max(ats_base - 5, 0),
-        "icims": ats_base,
-        "greenhouse": min(ats_base + 3, 100),
-        "lever": min(ats_base + 2, 100),
-        "successfactors": max(ats_base - 8, 0),
-    }
+    # ── Content score ────────────────────────────────────────────────────────
+    # Requires multiple sections; penalize sparse content
+    if sections_present == 0:
+        content_score = 0
+    else:
+        content_base = sections_present * 12  # max 60 from sections
+        content_length_bonus = min(word_count // 25, 25)  # up to 25 pts for length
+        content_score = min(content_base + content_length_bonus, 100)
 
-    # Skills score based on skills list length
+    # ── Skills score ────────────────────────────────────────────────────────
     skills = []
     if isinstance(parsed_data.get("additional"), dict):
-        skills = parsed_data["additional"].get("technicalSkills", [])
-    skills_score = min(40 + len(skills) * 5, 100)
+        skills = parsed_data["additional"].get("technicalSkills", []) or []
+    # 0-based: need actual skills listed
+    skills_score = min(len(skills) * 8, 95) if skills else 0
 
-    total = int(
-        layout_score * 0.15 +
-        content_score * 0.25 +
-        ats_base * 0.30 +
-        keyword_score * 0.15 +
-        skills_score * 0.10 +
+    # ── ATS base ──────────────────────────────────────────────────────────────
+    # Derived from keyword + format, not a freebie baseline
+    ats_base = min(int(keyword_score * 0.6 + layout_score * 0.4), 95)
+
+    # ── Platform scores ──────────────────────────────────────────────────────
+    platform_scores = {
+        "workday":        min(max(ats_base + 5, 0), 100),
+        "taleo":          min(max(ats_base - 5, 0), 100),
+        "icims":          min(max(ats_base,     0), 100),
+        "greenhouse":     min(max(ats_base + 3, 0), 100),
+        "lever":          min(max(ats_base + 2, 0), 100),
+        "successfactors": min(max(ats_base - 8, 0), 100),
+    }
+
+    # ── Total score with quality penalty ────────────────────────────────────
+    raw_total = int(
+        layout_score      * 0.15 +
+        content_score     * 0.25 +
+        ats_base          * 0.30 +
+        keyword_score     * 0.15 +
+        skills_score      * 0.10 +
         achievement_score * 0.05
     )
 
+    # Apply CV quality penalty — non-CV content gets crushed
+    total = max(1, int(raw_total * penalty_multiplier))
+
+    # Also apply penalty to sub-scores for consistency
+    def penalize(score: int) -> int:
+        return max(0, int(score * penalty_multiplier))
+
     return {
-        "total_score": total,
-        "layout_score": layout_score,
-        "content_score": content_score,
-        "ats_score": ats_base,
-        "keyword_score": keyword_score,
-        "skills_score": skills_score,
-        "achievement_score": achievement_score,
-        "ats_platform_scores": platform_scores,
-        "matched_keywords": matched,
-        "missing_keywords": missing,
-        "suggestions": [],          # filled by LLM below
-        "hr_review": None,
-        "summary": "",
-        "strengths": [],
-        "weaknesses": [],
+        "total_score":         total,
+        "layout_score":        penalize(layout_score),
+        "content_score":       penalize(content_score),
+        "ats_score":           penalize(ats_base),
+        "keyword_score":       penalize(keyword_score),
+        "skills_score":        penalize(skills_score),
+        "achievement_score":   penalize(achievement_score),
+        "ats_platform_scores": {k: penalize(v) for k, v in platform_scores.items()},
+        "matched_keywords":    matched,
+        "missing_keywords":    missing,
+        "suggestions":         [],
+        "hr_review":           None,
+        "summary":             "",
+        "strengths":           [],
+        "weaknesses":          [],
+        # Quality metadata (used by LLM enrichment prompt)
+        "_cv_quality":         quality,
     }
 
 
 async def _enrich_with_llm(score_result: dict, resume_text: str, role: str, jd: str) -> dict:
     """Call LLM to add suggestions, HR review, summary. Non-blocking — falls back silently."""
+    # Don't bother calling LLM if content is clearly not a CV
+    quality = score_result.get("_cv_quality", {})
+    if not quality.get("is_valid_cv", True) and quality.get("penalty_pct", 0) >= 60:
+        score_result["summary"] = "Tài liệu này có vẻ không phải CV. Vui lòng upload file CV đúng định dạng."
+        score_result["weaknesses"] = ["Không phát hiện cấu trúc CV hợp lệ", "Thiếu thông tin liên hệ, kinh nghiệm và học vấn"]
+        return score_result
+
     try:
         schema = {
             "type": "object",
@@ -150,14 +326,18 @@ async def _enrich_with_llm(score_result: dict, resume_text: str, role: str, jd: 
 CV (rút gọn):
 {resume_text[:6000]}
 
+Chất lượng tài liệu: {quality.get('word_count', 0)} từ, {quality.get('found_sections', 0)} section CV, {quality.get('structured_sections', 0)} section có cấu trúc.
+{"Layout AI: " + score_result.get("_layout_description", "") if score_result.get("_layout_description") else ""}
+{"⚠️ Tài liệu có dấu hiệu không phải CV chuẩn: " + ", ".join(quality.get("issues", [])) if quality.get("issues") else ""}
+
 Điểm số đã tính: total={score_result['total_score']}, ats={score_result['ats_score']}, keywords={score_result['keyword_score']}
 Từ khóa khớp: {', '.join(score_result['matched_keywords'][:10])}
 Từ khóa thiếu: {', '.join(score_result['missing_keywords'][:10])}
 
-Trả về JSON với: summary (1-2 câu), strengths (3 điểm), weaknesses (3 điểm),
+Trả về JSON với: summary (1-2 câu thực tế, nếu không phải CV thì nói rõ), strengths (3 điểm, để rỗng nếu không phải CV), weaknesses (3 điểm),
 suggestions (3-5 gợi ý với category/priority/problem/recommendation/evidence),
 hr_review (first_impression, strengths, concerns, priority_actions).
-Tất cả bằng tiếng Việt."""
+Tất cả bằng tiếng Việt. Không bịa đặt thông tin không có trong CV."""
 
         result = await complete_json(prompt, schema, schema_type="enrichment")
         if result:
@@ -182,7 +362,7 @@ async def analyze_resume(
     jd: Optional[str] = Form(""),
     user_id: str = Depends(verify_user)
 ):
-    """Parse CV, score deterministically, enrich with LLM, persist to Supabase."""
+    """Parse CV, score deterministically, enrich with LLM, persist to Firestore."""
     try:
         # 1. Parse file to markdown + structured JSON
         content = await cv.read()
@@ -194,33 +374,47 @@ async def analyze_resume(
         except Exception as e:
             logger.warning(f"Structured parse failed, continuing with markdown only: {e}")
 
-        # 2. Deterministic ATS scoring
-        score_result = calculate_ats_score(parsed_json, markdown_text, jd or "")
+        # 1b. Layout analysis (parallel with text parse)
+        layout_inputs: dict = {}
+        try:
+            layout = await analyze_document_layout(content, cv.filename or "resume.pdf")
+            layout_inputs = layout_to_score_inputs(layout)
+            logger.info(f"Layout analysis: method={layout.method}, score={layout_inputs.get('layout_score_override')}, warnings={layout.warnings}")
+        except Exception as e:
+            logger.warning(f"Layout analysis failed (non-blocking): {e}")
+
+        # 2. Deterministic ATS scoring (now with layout inputs)
+        score_result = calculate_ats_score(parsed_json, markdown_text, jd or "", layout_inputs)
 
         # 3. LLM enrichment (non-blocking fallback)
+        # Pass layout description to enrich prompt context
+        if layout_inputs.get("layout_description"):
+            score_result["_layout_description"] = layout_inputs["layout_description"]
         score_result = await _enrich_with_llm(score_result, markdown_text, role, jd or "")
 
-        # 4. Persist to Supabase
-        supabase = get_supabase()
+        # Strip internal metadata before persisting
+        score_result.pop("_cv_quality", None)
+        score_result.pop("_layout_description", None)
 
-        job_res = supabase.table("jobs").insert({
+        # 4. Persist to Firestore
+        job_res = add_document("jobs", {
             "user_id": user_id,
             "job_title": role,
             "job_description": jd or "",
-        }).execute()
-        job_id = job_res.data[0]["id"] if job_res.data else None
+        })
+        job_id = job_res["id"]
 
-        resume_res = supabase.table("resumes").insert({
+        resume_res = add_document("resumes", {
             "user_id": user_id,
             "name": cv.filename or "resume",
             "source_file_type": "pdf" if (cv.filename or "").endswith(".pdf") else "docx",
             "extracted_text": markdown_text,
             "parsed_data": parsed_json,
             "processing_status": "ready",
-        }).execute()
-        resume_id = resume_res.data[0]["id"] if resume_res.data else None
+        })
+        resume_id = resume_res["id"]
 
-        analysis_res = supabase.table("analyses").insert({
+        analysis_res = add_document("analyses", {
             "user_id": user_id,
             "resume_id": resume_id,
             "job_id": job_id,
@@ -237,8 +431,8 @@ async def analyze_resume(
             "suggestions": score_result["suggestions"],
             "hr_review": score_result.get("hr_review"),
             "summary": score_result.get("summary", ""),
-        }).execute()
-        analysis_id = analysis_res.data[0]["id"] if analysis_res.data else None
+        })
+        analysis_id = analysis_res["id"]
 
         log_usage(user_id, "analysis", {"resume_id": resume_id, "job_id": job_id})
 
@@ -260,27 +454,25 @@ async def analyze_resume(
 @router.get("/analyses")
 async def list_analyses(user_id: str = Depends(verify_user)):
     """List all analyses for the current user, newest first."""
-    supabase = get_supabase()
-    res = (
-        supabase.table("analyses")
-        .select("id, total_score, ats_score, keyword_score, created_at, resume_id, job_id")
-        .eq("user_id", user_id)
-        .order("created_at", desc=True)
-        .limit(50)
-        .execute()
+    rows = query_documents(
+        "analyses",
+        filters=[("user_id", "==", user_id)],
+        order_by="created_at",
+        descending=True,
+        limit=50,
     )
     # Enrich with resume name and job title
     items = []
-    for row in (res.data or []):
+    for row in rows:
         item = dict(row)
         # Fetch resume name
         if row.get("resume_id"):
-            r = supabase.table("resumes").select("name").eq("id", row["resume_id"]).maybe_single().execute()
-            item["file_name"] = r.data["name"] if r.data else ""
+            r = get_document("resumes", row["resume_id"])
+            item["file_name"] = r.get("name", "") if r else ""
         # Fetch job title
         if row.get("job_id"):
-            j = supabase.table("jobs").select("job_title").eq("id", row["job_id"]).maybe_single().execute()
-            item["role"] = j.data["job_title"] if j.data else ""
+            j = get_document("jobs", row["job_id"])
+            item["role"] = j.get("job_title", "") if j else ""
         items.append(item)
     return {"analyses": items}
 
@@ -288,23 +480,17 @@ async def list_analyses(user_id: str = Depends(verify_user)):
 @router.get("/analyses/{id}")
 async def get_analysis(id: str, user_id: str = Depends(verify_user)):
     """Get full analysis detail by ID."""
-    supabase = get_supabase()
-    res = (
-        supabase.table("analyses")
-        .select("*")
-        .eq("id", id)
-        .eq("user_id", user_id)
-        .maybe_single()
-        .execute()
-    )
-    if not res.data:
+    data = get_document("analyses", id)
+    if not data or data.get("user_id") != user_id:
         raise HTTPException(status_code=404, detail="Analysis not found")
-    return res.data
+    return data
 
 
 @router.delete("/analyses/{id}")
 async def delete_analysis(id: str, user_id: str = Depends(verify_user)):
     """Delete an analysis owned by the current user."""
-    supabase = get_supabase()
-    supabase.table("analyses").delete().eq("id", id).eq("user_id", user_id).execute()
+    data = get_document("analyses", id)
+    if not data or data.get("user_id") != user_id:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    delete_document("analyses", id)
     return {"status": "deleted"}

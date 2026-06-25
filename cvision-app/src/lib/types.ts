@@ -100,6 +100,6 @@ export interface UserProfile {
   uid: string;
   email: string;
   full_name: string;
-  plan: "free" | "premium" | "b2b";
+  plan: "free" | "pro" | "premium" | "enterprise" | "b2b";
   role: "user" | "admin";
 }
