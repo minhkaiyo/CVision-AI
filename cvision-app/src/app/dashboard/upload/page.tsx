@@ -259,7 +259,7 @@ export default function UploadPage() {
           {/* Left Column: Form & Upload */}
           <div className="lg:col-span-7 flex flex-col gap-6">
             <div className={`${glassCard} p-6 md:p-8 flex-1 flex flex-col`}>
-              <h2 className="font-extrabold text-gray-900 text-[18px] mb-6 flex items-center gap-2">
+              <h2 className="font-extrabold text-slate-800 text-[18px] mb-6 flex items-center gap-2">
                 <FileCheck2 className="w-5 h-5 text-blue-600" /> Tải Lên Hồ Sơ (CV/Resume)
               </h2>
               
@@ -314,11 +314,11 @@ export default function UploadPage() {
                     <div className="w-14 h-14 bg-white border border-gray-100 rounded-full flex items-center justify-center text-blue-500 mb-4 shadow-sm group-hover:scale-110 transition-transform">
                       <UploadCloud className="w-6 h-6" />
                     </div>
-                    <h3 className="text-gray-900 font-extrabold text-[15px]">Kéo thả CV vào đây</h3>
-                    <p className="text-gray-500 mt-1.5 text-[13px] font-medium">hoặc nhấp để duyệt file từ máy tính</p>
+                    <h3 className="text-slate-800 font-extrabold text-[15px]">Kéo thả CV vào đây</h3>
+                    <p className="text-slate-600 mt-1.5 text-[13px] font-medium">hoặc nhấp để duyệt file từ máy tính</p>
                     <div className="mt-4 flex gap-2">
-                      <span className="text-[11px] font-bold px-2.5 py-1 bg-white border border-gray-200 text-gray-500 rounded-md shadow-sm">PDF, DOCX, IMG</span>
-                      <span className="text-[11px] font-bold px-2.5 py-1 bg-white border border-gray-200 text-gray-500 rounded-md shadow-sm">Tối đa {MAX_SIZE_MB}MB</span>
+                      <span className="text-[11px] font-bold px-2.5 py-1 bg-white border border-slate-300 text-slate-600 rounded-md shadow-sm">PDF, DOCX, IMG</span>
+                      <span className="text-[11px] font-bold px-2.5 py-1 bg-white border border-slate-300 text-slate-600 rounded-md shadow-sm">Tối đa {MAX_SIZE_MB}MB</span>
                     </div>
                   </div>
                 )}
@@ -327,7 +327,7 @@ export default function UploadPage() {
               {/* JD Form */}
               <div className="mt-8 space-y-5 flex-1 flex flex-col">
                 <div>
-                  <label htmlFor="role" className="block text-[13.5px] font-bold text-gray-800 mb-2">
+                  <label htmlFor="role" className="block text-[13.5px] font-bold text-slate-800 mb-2">
                     Vị trí ứng tuyển <span className="text-red-500">*</span>
                   </label>
                   <input
@@ -336,20 +336,20 @@ export default function UploadPage() {
                     value={role}
                     onChange={(e) => setRole(e.target.value)}
                     placeholder="VD: Frontend Developer, Data Analyst..."
-                    className="w-full bg-white border border-gray-200 rounded-xl px-4 py-3 text-[14px] text-gray-800 placeholder:text-gray-400 font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition shadow-sm"
+                    className="w-full bg-white border border-slate-300 rounded-xl px-4 py-3 text-[14px] text-slate-900 placeholder:text-slate-400 font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 transition shadow-sm"
                   />
                 </div>
                 <div className="flex-1 flex flex-col">
-                  <label htmlFor="jd" className="flex items-center justify-between text-[13.5px] font-bold text-gray-800 mb-2">
+                  <label htmlFor="jd" className="flex items-center justify-between text-[13.5px] font-bold text-slate-800 mb-2">
                     <span>Job Description (JD)</span>
-                    <span className="text-gray-400 font-medium text-[12px] font-normal bg-gray-50 px-2 py-0.5 rounded-md border border-gray-100">Tuỳ chọn · Đề xuất</span>
+                    <span className="text-slate-500 font-medium text-[12px] bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">Tuỳ chọn · Đề xuất</span>
                   </label>
                   <textarea
                     id="jd"
                     value={jd}
                     onChange={(e) => setJd(e.target.value)}
                     placeholder="Dán toàn bộ nội dung tin tuyển dụng vào đây để AI đối chiếu từ khóa và chấm điểm độ fit..."
-                    className="w-full flex-1 min-h-[140px] bg-white border border-gray-200 rounded-xl px-4 py-3 text-[14px] text-gray-800 placeholder:text-gray-400 font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 resize-none transition shadow-sm"
+                    className="w-full flex-1 min-h-[140px] bg-white border border-slate-300 rounded-xl px-4 py-3 text-[14px] text-slate-900 placeholder:text-slate-400 font-medium outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10 resize-none transition shadow-sm"
                   />
                 </div>
               </div>
@@ -376,7 +376,7 @@ export default function UploadPage() {
             
             {/* What to expect checklist */}
             <div className={`${glassCard} p-6`}>
-              <h3 className="font-extrabold text-gray-900 text-[15px] mb-4 flex items-center gap-2">
+              <h3 className="font-extrabold text-slate-800 text-[15px] mb-4 flex items-center gap-2">
                 <Cpu className="w-4.5 h-4.5 text-indigo-600" /> Hệ thống AI sẽ phân tích:
               </h3>
               <div className="space-y-3.5">
@@ -392,8 +392,8 @@ export default function UploadPage() {
                       <item.icon className="w-3.5 h-3.5 text-blue-600" />
                     </div>
                     <div>
-                      <div className="text-[13px] font-bold text-gray-900">{item.title}</div>
-                      <div className="text-[12px] font-medium text-gray-500 leading-snug mt-0.5">{item.desc}</div>
+                      <div className="text-[13px] font-bold text-slate-800">{item.title}</div>
+                      <div className="text-[12px] font-medium text-slate-600 leading-snug mt-0.5">{item.desc}</div>
                     </div>
                   </div>
                 ))}
@@ -401,9 +401,9 @@ export default function UploadPage() {
             </div>
 
             {/* Empty Result Preview / Wireframe */}
-            <div className={`${glassCard} p-6 flex-1 flex flex-col relative overflow-hidden bg-gradient-to-b from-white to-gray-50/50`}>
-              <h3 className="font-extrabold text-gray-400 text-[13px] mb-4 uppercase tracking-wider">Preview Báo cáo</h3>
-              <div className="flex-1 w-full border border-gray-100 rounded-xl bg-white shadow-sm p-4 relative opacity-50 blur-[2px] pointer-events-none select-none">
+            <div className={`${glassCard} p-6 flex-1 flex flex-col relative overflow-hidden bg-gradient-to-b from-white to-slate-50/50`}>
+              <h3 className="font-extrabold text-slate-500 text-[13px] mb-4 uppercase tracking-wider">Preview Báo cáo</h3>
+              <div className="flex-1 w-full border border-slate-200 rounded-xl bg-white shadow-sm p-4 relative opacity-60 blur-[2px] pointer-events-none select-none">
                 {/* Fake Dashboard Layout */}
                 <div className="flex gap-4 mb-4">
                   <div className="w-16 h-16 rounded-full bg-gray-200" />

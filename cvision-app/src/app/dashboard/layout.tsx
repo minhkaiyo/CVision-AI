@@ -325,19 +325,19 @@ function NavLink({ href, label, icon: Icon, exact, onClick, accent = false }: {
   const active = exact ? pathname === href : pathname.startsWith(href);
   return (
     <Link href={href} onClick={onClick}
-      className={`flex items-center gap-3.5 px-4 py-3 text-[14px] rounded-2xl font-semibold transition-all duration-300 group relative overflow-hidden ${
+      className={`flex items-center gap-3.5 px-4 py-3 text-[14px] rounded-2xl font-bold transition-all duration-300 group relative overflow-hidden ${
         active 
-          ? "text-blue-700 shadow-[0_8px_20px_rgba(59,130,246,0.15)] bg-gradient-to-r from-blue-100/80 to-indigo-100/80 border border-white/60"
+          ? "text-blue-800 shadow-[0_8px_20px_rgba(59,130,246,0.15)] bg-gradient-to-r from-blue-100/80 to-indigo-100/80 border border-white/80"
           : accent 
-            ? "text-indigo-600 hover:bg-white/50 border border-transparent hover:border-white/60"
-            : "text-slate-500 hover:bg-white/50 border border-transparent hover:border-white/60 hover:text-slate-800 hover:shadow-sm"
+            ? "text-indigo-700 hover:bg-white/60 border border-transparent hover:border-white/80"
+            : "text-slate-700 hover:bg-white/60 border border-transparent hover:border-white/80 hover:text-slate-900 hover:shadow-sm"
       }`}
     >
       {active && (
         <motion.div layoutId="navIndicator" className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 rounded-r-full" />
       )}
       <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-        active ? "bg-white text-blue-600 shadow-sm" : "bg-white/50 text-slate-400 group-hover:text-blue-500 group-hover:bg-white"
+        active ? "bg-white text-blue-700 shadow-sm" : "bg-white/70 text-slate-500 group-hover:text-blue-600 group-hover:bg-white"
       }`}>
         <Icon className="w-4 h-4" />
       </div>
@@ -388,7 +388,7 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-105 transition-all">
               <Sparkles className="w-5 h-5 text-white" />
             </div>
-            <span className="font-extrabold text-[20px] bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-700 tracking-tight">CVision</span>
+            <span className="font-extrabold text-[22px] bg-clip-text text-transparent bg-gradient-to-r from-blue-800 to-indigo-800 tracking-tight">CVision</span>
           </Link>
         </div>
         {onClose && (
@@ -402,11 +402,11 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
       <div className="flex-1 overflow-y-auto py-2 px-4 space-y-1 scrollbar-hide">
         {NAV_MAIN.map(item => <NavLink key={item.href} {...item} onClick={onClose} />)}
         <div className="pt-5">
-          <p className="text-[11px] font-black text-indigo-400/70 uppercase tracking-widest px-3 pb-2 mb-1">Công Cụ AI</p>
+          <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest px-3 pb-2 mb-1">Công Cụ AI</p>
           {NAV_TOOLS.map(item => <NavLink key={item.href} {...item} onClick={onClose} />)}
         </div>
         <div className="pt-5">
-          <p className="text-[11px] font-black text-indigo-400/70 uppercase tracking-widest px-3 pb-2 mb-1">Tài Khoản</p>
+          <p className="text-[11px] font-black text-slate-500 uppercase tracking-widest px-3 pb-2 mb-1">Tài Khoản</p>
           {NAV_ACCOUNT.map(item => <NavLink key={item.href} {...item} onClick={onClose} accent={item.href === "/dashboard/billing"} />)}
         </div>
       </div>
