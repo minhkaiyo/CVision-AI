@@ -20,7 +20,6 @@ import {
   type AppNotification,
 } from "@/lib/store";
 import { AnalysisProvider, useAnalysis } from "@/lib/analysis-context";
-import { BackgroundParticles } from "@/components/BackgroundParticles";
 
 // ── Notification helpers ──────────────────────────────────────────────────────
 
@@ -502,7 +501,6 @@ function DashboardShell({
   return (
     <div className="flex h-screen bg-[#e8effc] font-inter overflow-hidden p-3 md:p-5 gap-5 relative z-0">
       {/* ── Extemely Beautiful Animated Background ── */}
-      <BackgroundParticles />
       <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.04] mix-blend-overlay z-10" />
         
