@@ -15,7 +15,7 @@ const ALLOWED_TYPES = ["application/pdf", "application/msword", "application/vnd
 const ALLOWED_EXT = [".pdf", ".doc", ".docx", ".png", ".jpg", ".jpeg", ".webp"];
 
 // ── Shared UI Styles ─────────────────────────────────────────────────────────
-const glassCard = "backdrop-blur-xl bg-white/90 border border-white/60 shadow-sm rounded-3xl";
+const glassCard = "backdrop-blur-[40px] bg-white/20 border-[1.5px] border-white/60 shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),inset_0_-1px_2px_rgba(255,255,255,0.3),0_12px_40px_rgba(31,38,135,0.1)] rounded-[2.5rem] relative overflow-hidden";
 
 export default function UploadPage() {
   const router = useRouter();
@@ -98,10 +98,9 @@ export default function UploadPage() {
       backendForm.append("role", role.trim());
       if (jd.trim()) backendForm.append("jd", jd.trim());
 
-      const backendRes = await fetch(
-        `${process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1"}/analyses`,
-        { method: "POST", body: backendForm }
-      ).catch(() => null);
+      const backendRes = process.env.NEXT_PUBLIC_API_URL
+        ? await fetch(`${process.env.NEXT_PUBLIC_API_URL}/analyses`, { method: "POST", body: backendForm }).catch(() => null)
+        : null;
 
       if (backendRes?.ok) {
         const data = await backendRes.json();

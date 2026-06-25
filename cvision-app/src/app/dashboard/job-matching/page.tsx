@@ -44,10 +44,10 @@ function JobCard({ job, index }: { job: typeof MOCK_JOBS[0]; index: number }) {
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ delay: index * 0.07 }}
-      className="backdrop-blur-xl bg-white/75 border border-white/60 shadow-sm rounded-2xl p-5 flex flex-col gap-4 hover:shadow-md hover:border-blue-200 transition-all duration-300"
+      className="backdrop-blur-[40px] bg-white/20 border-[1.5px] border-white/60 shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),inset_0_-1px_2px_rgba(255,255,255,0.3),0_12px_40px_rgba(31,38,135,0.1)] rounded-[2.5rem] p-5 flex flex-col gap-4 hover:shadow-lg hover:border-white/80 transition-all duration-300 relative overflow-hidden"
     >
-      {/* Header */}
-      <div className="flex items-start justify-between gap-3">
+      <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-white/10 pointer-events-none" />
+      <div className="relative z-10 flex items-start justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0">
             {imgError ? (
@@ -149,7 +149,7 @@ export default function JobMatchingPage() {
           { label: "Ứng tuyển mới hôm nay", value: 3, icon: "🔔" },
         ].map((s, i) => (
           <motion.div key={i} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.08 }}
-            className="backdrop-blur-xl bg-white/75 border border-white/60 shadow-sm rounded-2xl p-4 flex items-center gap-3">
+            className="backdrop-blur-[40px] bg-white/20 border-[1.5px] border-white/60 shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),inset_0_-1px_2px_rgba(255,255,255,0.3),0_12px_40px_rgba(31,38,135,0.1)] rounded-[2.5rem] p-4 flex items-center gap-3">
             <span className="text-2xl">{s.icon}</span>
             <div>
               <div className="text-xl font-black text-gray-900">{s.value}</div>
@@ -180,7 +180,7 @@ export default function JobMatchingPage() {
 
       {/* Grid */}
       {filtered.length === 0 ? (
-        <div className="backdrop-blur-xl bg-white/75 border border-white/60 shadow-sm rounded-2xl py-16 text-center">
+        <div className="backdrop-blur-[40px] bg-white/20 border-[1.5px] border-white/60 shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),inset_0_-1px_2px_rgba(255,255,255,0.3),0_12px_40px_rgba(31,38,135,0.1)] rounded-[2.5rem] py-16 text-center">
           <Briefcase className="w-10 h-10 text-gray-300 mx-auto mb-3" />
           <p className="text-gray-500 text-sm">Không tìm thấy vị trí phù hợp</p>
         </div>

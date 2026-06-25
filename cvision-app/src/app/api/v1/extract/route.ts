@@ -3,7 +3,7 @@ import mammoth from "mammoth";
 
 export const maxDuration = 60;
 
-const BACKEND = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const BACKEND = process.env.NEXT_PUBLIC_API_URL;
 
 /**
  * POST /api/v1/extract
@@ -81,7 +81,8 @@ export async function POST(req: NextRequest) {
 
     // ── Images ────────────────────────────────────────────────────────────
     else if (["png", "jpg", "jpeg", "webp"].includes(ext)) {
-      extractedText = await extractViaBackend(buffer, fileName);
+      extractedText = await extractImageWithAI(buffer, fileName);
+      if (!extractedText) extractedText = await extractViaBackend(buffer, fileName);
     }
 
     else {
@@ -127,6 +128,7 @@ export async function POST(req: NextRequest) {
  * Backend uses pdfminer + markitdown, no AI key needed for text PDFs.
  */
 async function extractViaBackend(buffer: Buffer, fileName: string): Promise<string> {
+  if (!BACKEND) return "";
   try {
     const form = new FormData();
     const blob = new Blob([new Uint8Array(buffer)], { type: getMimeType(fileName) });
@@ -147,6 +149,39 @@ async function extractViaBackend(buffer: Buffer, fileName: string): Promise<stri
 
   // Last resort: return empty (handled by caller)
   return "";
+}
+
+async function extractImageWithAI(buffer: Buffer, fileName: string): Promise<string> {
+  const openaiKey = process.env.OPENAI_API_KEY;
+  if (!openaiKey) return "";
+
+  try {
+    const OpenAI = (await import("openai")).default;
+    const client = new OpenAI({ apiKey: openaiKey });
+    const mimeType = getMimeType(fileName);
+    const dataUrl = `data:${mimeType};base64,${buffer.toString("base64")}`;
+    const completion = await client.chat.completions.create({
+      model: process.env.CVISION_OPENAI_VISION_MODEL || "gpt-4o-mini",
+      messages: [
+        {
+          role: "user",
+          content: [
+            {
+              type: "text",
+              text: "Extract all readable resume/CV text from this image. Preserve headings, bullet points, dates, contact details and skills. Return plain text only.",
+            },
+            { type: "image_url", image_url: { url: dataUrl } },
+          ],
+        },
+      ],
+      temperature: 0,
+      max_tokens: 2500,
+    });
+    return completion.choices[0]?.message?.content?.trim() ?? "";
+  } catch (error) {
+    console.error("Image OCR fallback failed:", error);
+    return "";
+  }
 }
 
 function getMimeType(fileName: string): string {

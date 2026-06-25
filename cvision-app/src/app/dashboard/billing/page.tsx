@@ -172,7 +172,9 @@ function PlanCard({
     : "border border-gray-100 shadow-sm";
 
   return (
-    <div className={`relative bg-white rounded-2xl p-6 flex flex-col ${borderClass}`}>
+    <div className={`relative backdrop-blur-[40px] bg-white/20 border-[1.5px] shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),inset_0_-1px_2px_rgba(255,255,255,0.3),0_12px_40px_rgba(31,38,135,0.1)] rounded-[2.5rem] p-6 flex flex-col overflow-hidden ${borderClass}`}>
+      <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-white/10 pointer-events-none" />
+      <div className="relative z-10 flex flex-col h-full">
       {/* Badge */}
       {plan.badge && (
         <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-400 text-amber-900 text-[11px] font-black px-3 py-1 rounded-full uppercase tracking-wider whitespace-nowrap">
@@ -235,29 +237,30 @@ function PlanCard({
       </ul>
 
       {/* CTA */}
-      {plan.id === "free" ? (
-        <div className="w-full text-center py-2.5 text-sm text-gray-400 bg-gray-50 rounded-xl font-medium border border-gray-100">
-          {isCurrent ? "Gói hiện tại" : "Gói mặc định"}
-        </div>
-      ) : (
-        <button
-          disabled={isThisUpgrading || isCurrent || isOwned}
-          onClick={() => {
-            const key = yearly ? plan.checkoutKeyYear : plan.checkoutKey;
-            if (key) onUpgrade(key);
-          }}
-          className={`w-full py-2.5 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 ${
-            isCurrent || isOwned
-              ? "bg-gray-100 text-gray-400 cursor-default"
-              : isPopular
-              ? "bg-amber-400 hover:bg-amber-500 text-white shadow-md shadow-amber-200"
-              : "bg-blue-500 hover:bg-blue-600 text-white shadow-md shadow-blue-200"
-          }`}
-        >
-          {isThisUpgrading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-          {isCurrent ? "Đang sử dụng" : isOwned ? "Đã bao gồm" : isThisUpgrading ? "Đang xử lý..." : "Nâng cấp"}
-        </button>
-      )}
+      <div className="mt-auto">
+        {plan.id === "free" ? (
+          <div className="w-full text-center py-2.5 text-sm text-gray-500 bg-white/30 rounded-xl font-medium border border-white/40 shadow-[inset_0_1px_1px_rgba(255,255,255,0.8)]">
+            {isCurrent ? "Gói hiện tại" : "Gói mặc định"}
+          </div>
+        ) : (
+          <button
+            disabled={isThisUpgrading || isCurrent || isOwned}
+            onClick={() => {
+              const key = yearly ? plan.checkoutKeyYear : plan.checkoutKey;
+              if (key) onUpgrade(key);
+            }}
+            className={`w-full py-2.5 rounded-xl font-bold text-sm transition flex items-center justify-center gap-2 ${
+              isCurrent || isOwned
+                ? "bg-gray-100/50 text-gray-400 cursor-not-allowed"
+                : "bg-gradient-to-r from-blue-500 to-indigo-600 text-white hover:opacity-90 shadow-[0_4px_15px_rgba(59,130,246,0.4),inset_0_1px_1px_rgba(255,255,255,0.4)]"
+            }`}
+          >
+            {isThisUpgrading ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+            {isCurrent ? "Đang sử dụng" : isOwned ? "Đã bao gồm" : isThisUpgrading ? "Đang xử lý..." : "Nâng cấp"}
+          </button>
+        )}
+      </div>
+      </div>
     </div>
   );
 }

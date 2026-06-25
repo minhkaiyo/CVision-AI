@@ -215,7 +215,9 @@ export default function CoverLetterPage() {
 
       <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
         <div className="space-y-5 lg:sticky lg:top-6 lg:col-span-4">
-          <div className="rounded-2xl border border-white/70 bg-white/85 p-6 shadow-sm backdrop-blur-xl">
+          <div className="backdrop-blur-[40px] bg-white/20 border-[1.5px] border-white/60 shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),inset_0_-1px_2px_rgba(255,255,255,0.3),0_12px_40px_rgba(31,38,135,0.1)] p-6 rounded-[2.5rem] relative overflow-hidden">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-white/10 pointer-events-none" />
+            <div className="relative z-10">
             <h2 className="mb-5 flex items-center gap-2 text-[16px] font-extrabold text-gray-900">
               <Settings2 className="h-[18px] w-[18px] text-blue-600" />
               Thông số đầu vào
@@ -352,6 +354,7 @@ export default function CoverLetterPage() {
                   </>
                 )}
               </button>
+            </div>
             </div>
           </div>
         </div>

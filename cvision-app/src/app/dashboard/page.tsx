@@ -137,16 +137,17 @@ function QuickCard({
   return (
     <Link
       href={href}
-      className="group bg-white rounded-2xl border border-gray-100 p-5 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-50 transition-all duration-300 flex items-start gap-4"
+      className="group backdrop-blur-[40px] bg-white/20 border-[1.5px] border-white/60 shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),inset_0_-1px_2px_rgba(255,255,255,0.3),0_12px_40px_rgba(31,38,135,0.1)] rounded-[2.5rem] p-5 hover:shadow-lg transition-all duration-300 flex items-start gap-4 relative overflow-hidden"
     >
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300 ${color}`}>
+      <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-white/10 pointer-events-none" />
+      <div className={`relative z-10 w-11 h-11 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform duration-300 ${color}`}>
         <Icon className="w-5 h-5" />
       </div>
-      <div className="min-w-0">
-        <div className="font-bold text-gray-800 text-[14px] mb-1">{title}</div>
-        <div className="text-[12px] text-gray-400 leading-relaxed">{desc}</div>
+      <div className="relative z-10 min-w-0">
+        <div className="font-bold text-gray-800 text-[14px] mb-1 drop-shadow-sm">{title}</div>
+        <div className="text-[12px] text-gray-600 font-medium leading-relaxed">{desc}</div>
       </div>
-      <ArrowRight className="w-4 h-4 text-gray-300 group-hover:text-blue-400 shrink-0 mt-0.5 transition-colors ml-auto" />
+      <ArrowRight className="relative z-10 w-4 h-4 text-gray-400 group-hover:text-blue-500 shrink-0 mt-0.5 transition-colors ml-auto" />
     </Link>
   );
 }
@@ -205,7 +206,9 @@ export default function DashboardHome() {
       <Marquee />
 
       {/* ── "Why People Choose" section ── */}
-      <div className="bg-white rounded-2xl border border-gray-100 px-8 py-8 mb-6 relative overflow-hidden">
+      <div className="backdrop-blur-[40px] bg-white/20 border-[1.5px] border-white/60 shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),inset_0_-1px_2px_rgba(255,255,255,0.3),0_12px_40px_rgba(31,38,135,0.1)] rounded-[2.5rem] px-8 py-8 mb-6 relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-white/10 pointer-events-none" />
+        <div className="relative z-10">
         {/* Decorative dots */}
         <div className="absolute top-4 left-1/2 -translate-x-1/2 flex gap-2">
           {[0,1,2].map(i => <span key={i} className="w-1.5 h-1.5 rounded-full bg-blue-200" />)}
@@ -224,6 +227,7 @@ export default function DashboardHome() {
           <StatBox label="CV Versions" value={stats.versionCount || "—"} />
           <StatBox label="Avg Score" value={stats.avgScore > 0 ? `${stats.avgScore}` : "—"} />
           <StatBox label="Features" value="6" />
+        </div>
         </div>
       </div>
 

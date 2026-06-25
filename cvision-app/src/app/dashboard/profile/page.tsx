@@ -21,8 +21,9 @@ function Card({ title, description, icon: Icon, children }: {
   title: string; description?: string; icon: React.ElementType; children: React.ReactNode;
 }) {
   return (
-    <div className="backdrop-blur-xl bg-white/75 border border-white/60 shadow-sm rounded-2xl overflow-hidden relative">
-      <div className="absolute top-0 right-0 w-40 h-40 bg-blue-50 rounded-full blur-3xl -z-10 pointer-events-none opacity-60" />
+    <div className="backdrop-blur-[40px] bg-white/20 border-[1.5px] border-white/60 shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),inset_0_-1px_2px_rgba(255,255,255,0.3),0_12px_40px_rgba(31,38,135,0.1)] rounded-[2.5rem] overflow-hidden relative">
+      <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-white/10 pointer-events-none" />
+      <div className="absolute top-0 right-0 w-40 h-40 bg-blue-400/20 rounded-full blur-[60px] pointer-events-none" />
       <div className="px-6 py-5 border-b border-gray-100/50 flex items-center justify-between z-10 relative">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 flex items-center justify-center shrink-0 border border-blue-100/50 shadow-sm">
@@ -191,8 +192,9 @@ export default function ProfilePage() {
         
         {/* ── Left Column: Profile Summary ──────────────────────────────────────── */}
         <div className="lg:col-span-4 space-y-6 lg:sticky lg:top-6">
-          <div className="backdrop-blur-xl bg-white/75 border border-white/60 shadow-sm rounded-2xl overflow-hidden relative flex flex-col items-center text-center p-8">
-            <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-br from-blue-100/50 to-indigo-50/50" />
+          <div className="backdrop-blur-[40px] bg-white/20 border-[1.5px] border-white/60 shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),inset_0_-1px_2px_rgba(255,255,255,0.3),0_12px_40px_rgba(31,38,135,0.1)] rounded-[2.5rem] overflow-hidden relative flex flex-col items-center text-center p-8">
+            <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-white/10 pointer-events-none" />
+            <div className="absolute top-0 left-0 right-0 h-32 bg-gradient-to-br from-blue-400/20 to-indigo-400/20 blur-[40px]" />
             
             {/* Avatar block */}
             <div className="relative mt-4 mb-4 z-10 group">

@@ -43,6 +43,10 @@ const analysisSchema = z.object({
   weaknesses: z.array(z.string()),
 });
 
+export async function GET() {
+  return NextResponse.json({ analyses: [] });
+}
+
 function buildFallbackAnalysis(cvText: string, role: string, jd: string) {
   const text = cvText.toLowerCase();
   const jdTokens = Array.from(

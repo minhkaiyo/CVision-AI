@@ -32,3 +32,5 @@ docs/
 
 # Logs
 *.log
+.vercel
+.env*

@@ -9,7 +9,7 @@ import {
 import { toast } from "@/components/ui/toast";
 import { getAccessToken } from "@/lib/auth";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
 async function apiFetch<T>(path: string, options: RequestInit = {}): Promise<T> {
   let token = "";

@@ -115,7 +115,9 @@ export default function AnalysesHistory() {
         </div>
       </div>
 
-      <div className="bg-white p-6 md:p-8 rounded-3xl border border-gray-100 shadow-sm space-y-6">
+      <div className="backdrop-blur-[40px] bg-white/20 border-[1.5px] border-white/60 shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),inset_0_-1px_2px_rgba(255,255,255,0.3),0_12px_40px_rgba(31,38,135,0.1)] p-6 md:p-8 rounded-[2.5rem] relative overflow-hidden space-y-6">
+        <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-white/10 pointer-events-none" />
+        <div className="relative z-10 space-y-6">
         {/* Search */}
         {analyses.length > 0 && (
           <div className="relative">
@@ -146,7 +148,7 @@ export default function AnalysesHistory() {
 
         {/* List */}
         {filtered.length > 0 && (
-          <div className="border border-gray-100 rounded-2xl overflow-hidden bg-white shadow-sm divide-y divide-gray-100">
+          <div className="backdrop-blur-xl bg-white/60 border border-white/80 rounded-2xl overflow-hidden shadow-[inset_0_1px_1px_rgba(255,255,255,1)] divide-y divide-gray-100/50">
             {filtered.map((item) => (
               <Link
                 key={item.analysis_id}
@@ -198,6 +200,7 @@ export default function AnalysesHistory() {
             Không tìm thấy kết quả với &ldquo;<span className="text-gray-800">{search}</span>&rdquo;
           </div>
         )}
+        </div>
       </div>
     </div>
   );

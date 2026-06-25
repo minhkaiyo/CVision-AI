@@ -20,6 +20,7 @@ import {
   type AppNotification,
 } from "@/lib/store";
 import { AnalysisProvider, useAnalysis } from "@/lib/analysis-context";
+import { BackgroundParticles } from "@/components/BackgroundParticles";
 
 // ── Notification helpers ──────────────────────────────────────────────────────
 
@@ -325,13 +326,22 @@ function NavLink({ href, label, icon: Icon, exact, onClick, accent = false }: {
   const active = exact ? pathname === href : pathname.startsWith(href);
   return (
     <Link href={href} onClick={onClick}
-      className={`flex items-center gap-3 px-4 py-2.5 text-[13.5px] rounded-xl font-medium transition-all duration-200 group ${
-        active ? "bg-[#3b82f6] text-white shadow-[0_4px_14px_rgba(59,130,246,0.35)]"
-        : accent ? "text-[#3b82f6] hover:bg-blue-50"
-        : "text-gray-500 hover:bg-gray-100 hover:text-gray-700"
+      className={`flex items-center gap-3.5 px-4 py-3 text-[14px] rounded-2xl font-semibold transition-all duration-300 group relative overflow-hidden ${
+        active 
+          ? "text-blue-700 shadow-[0_8px_20px_rgba(59,130,246,0.15)] bg-gradient-to-r from-blue-100/80 to-indigo-100/80 border border-white/60"
+          : accent 
+            ? "text-indigo-600 hover:bg-white/50 border border-transparent hover:border-white/60"
+            : "text-slate-500 hover:bg-white/50 border border-transparent hover:border-white/60 hover:text-slate-800 hover:shadow-sm"
       }`}
     >
-      <Icon className={`w-4 h-4 shrink-0 ${active ? "text-white" : accent ? "text-[#3b82f6]" : "text-gray-400 group-hover:text-gray-600"}`} />
+      {active && (
+        <motion.div layoutId="navIndicator" className="absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b from-blue-500 to-indigo-500 rounded-r-full" />
+      )}
+      <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
+        active ? "bg-white text-blue-600 shadow-sm" : "bg-white/50 text-slate-400 group-hover:text-blue-500 group-hover:bg-white"
+      }`}>
+        <Icon className="w-4 h-4" />
+      </div>
       {label}
     </Link>
   );
@@ -371,56 +381,53 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
   const initials = userName.charAt(0).toUpperCase();
 
   return (
-    <div className="flex flex-col h-full bg-white border-r border-gray-100">
+    <div className="flex flex-col h-full bg-transparent">
       {/* Logo */}
-      <div className="h-16 flex items-center justify-between px-4 border-b border-gray-100 shrink-0">
+      <div className="h-20 flex items-center justify-between px-6 shrink-0">
         <div className="flex items-center gap-3">
-          <Link href="/" className="w-7 h-7 flex items-center justify-center rounded-md bg-gray-50 border border-gray-100 hover:bg-blue-50 hover:text-blue-500 hover:border-blue-200 text-gray-400 transition" title="Về trang chủ">
-            <ChevronLeft className="w-4 h-4" />
-          </Link>
           <Link href="/dashboard" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 rounded-lg bg-[#3b82f6] flex items-center justify-center shadow-md group-hover:scale-105 transition-transform">
-              <Sparkles className="w-4 h-4 text-white" />
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30 group-hover:scale-105 transition-all">
+              <Sparkles className="w-5 h-5 text-white" />
             </div>
-            <span className="font-bold text-[18px] text-[#3b82f6] tracking-tight">CVision</span>
+            <span className="font-extrabold text-[20px] bg-clip-text text-transparent bg-gradient-to-r from-blue-700 to-indigo-700 tracking-tight">CVision</span>
           </Link>
         </div>
         {onClose && (
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 md:hidden">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 md:hidden bg-white/50 p-2 rounded-full backdrop-blur-md">
             <X className="w-5 h-5" />
           </button>
         )}
       </div>
 
       {/* Nav */}
-      <div className="flex-1 overflow-y-auto py-4 px-3 space-y-1">
+      <div className="flex-1 overflow-y-auto py-2 px-4 space-y-1 scrollbar-hide">
         {NAV_MAIN.map(item => <NavLink key={item.href} {...item} onClick={onClose} />)}
-        <div className="pt-4">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-4 pb-2">Công Cụ AI</p>
+        <div className="pt-5">
+          <p className="text-[11px] font-black text-indigo-400/70 uppercase tracking-widest px-3 pb-2 mb-1">Công Cụ AI</p>
           {NAV_TOOLS.map(item => <NavLink key={item.href} {...item} onClick={onClose} />)}
         </div>
-        <div className="pt-4">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest px-4 pb-2">Tài Khoản</p>
+        <div className="pt-5">
+          <p className="text-[11px] font-black text-indigo-400/70 uppercase tracking-widest px-3 pb-2 mb-1">Tài Khoản</p>
           {NAV_ACCOUNT.map(item => <NavLink key={item.href} {...item} onClick={onClose} accent={item.href === "/dashboard/billing"} />)}
         </div>
       </div>
 
       {/* Bottom user card */}
-      <div className="p-3 border-t border-gray-100 shrink-0">
-        <div className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-gray-50 transition">
+      <div className="p-4 shrink-0">
+        <div className="backdrop-blur-xl bg-white/60 border border-white/80 shadow-sm flex items-center justify-between px-4 py-3 rounded-2xl hover:bg-white/80 transition-all">
           <Link href="/dashboard/profile" className="flex items-center gap-3 min-w-0 flex-1">
-            <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold shrink-0">
+            <div className="w-9 h-9 rounded-full overflow-hidden bg-gradient-to-br from-blue-400 to-indigo-500 flex items-center justify-center text-white text-xs font-bold shrink-0 shadow-inner">
               {avatarUrl
-                ? <Image src={avatarUrl} alt={userName} width={32} height={32} className="w-full h-full object-cover" unoptimized />
+                ? <Image src={avatarUrl} alt={userName} width={36} height={36} className="w-full h-full object-cover" unoptimized />
                 : initials
               }
             </div>
             <div className="min-w-0">
-              <div className="text-[13px] font-semibold text-gray-700 truncate max-w-[120px]">{userName}</div>
-              <div className="text-[11px] text-gray-400 truncate max-w-[120px]">{userEmail}</div>
+              <div className="text-[13px] font-bold text-gray-800 truncate max-w-[110px]">{userName}</div>
+              <div className="text-[11px] text-gray-500 truncate max-w-[110px] font-medium">{userEmail}</div>
             </div>
           </Link>
-          <button onClick={handleLogout} title="Đăng xuất" className="text-gray-300 hover:text-red-400 transition shrink-0">
+          <button onClick={handleLogout} title="Đăng xuất" className="text-gray-400 hover:text-red-500 transition shrink-0 bg-white/50 p-2 rounded-xl">
             <LogOut className="w-4 h-4" />
           </button>
         </div>
@@ -493,53 +500,79 @@ function DashboardShell({
   setMobileOpen: (v: boolean) => void;
 }) {
   return (
-    <div className="flex h-screen bg-[#f5f7fb] font-inter overflow-hidden">
-      <aside className="hidden md:flex w-[240px] flex-col flex-shrink-0 z-20">
-        <Sidebar />
+    <div className="flex h-screen bg-[#e8effc] font-inter overflow-hidden p-3 md:p-5 gap-5 relative z-0">
+      {/* ── Extemely Beautiful Animated Background ── */}
+      <BackgroundParticles />
+      <div className="absolute inset-0 overflow-hidden pointer-events-none -z-10">
+        <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-[0.04] mix-blend-overlay z-10" />
+        
+        <motion.div 
+          animate={{ x: ["0%", "30%", "-10%", "0%"], y: ["0%", "-20%", "10%", "0%"] }}
+          transition={{ duration: 15, ease: "easeInOut", repeat: Infinity }}
+          className="absolute -top-[10%] -left-[10%] w-[70%] h-[70%] rounded-full bg-gradient-to-r from-blue-400/60 to-cyan-400/60 blur-[120px] mix-blend-multiply" 
+        />
+        
+        <motion.div 
+          animate={{ x: ["0%", "-30%", "20%", "0%"], y: ["0%", "20%", "-20%", "0%"] }}
+          transition={{ duration: 20, ease: "easeInOut", repeat: Infinity }}
+          className="absolute -bottom-[10%] -right-[10%] w-[80%] h-[80%] rounded-full bg-gradient-to-l from-purple-400/60 to-pink-400/60 blur-[120px] mix-blend-multiply" 
+        />
+      </div>
+
+      {/* Sidebar Glass Panel */}
+      <aside className="hidden md:flex w-[260px] flex-col flex-shrink-0 z-20 backdrop-blur-[40px] bg-white/20 border-[1.5px] border-white/60 shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),inset_0_-1px_2px_rgba(255,255,255,0.3),0_12px_40px_rgba(31,38,135,0.1)] rounded-[2.5rem] overflow-hidden relative">
+        <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-white/10 pointer-events-none" />
+        <div className="relative z-10 flex flex-col h-full"><Sidebar /></div>
       </aside>
 
       <AnimatePresence>
         {mobileOpen && (
-          <div className="fixed inset-0 z-50 md:hidden">
+          <div className="fixed inset-0 z-50 md:hidden p-3">
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-              className="absolute inset-0 bg-black/30" onClick={() => setMobileOpen(false)} />
+              className="absolute inset-0 bg-black/20 backdrop-blur-md rounded-3xl" onClick={() => setMobileOpen(false)} />
             <motion.aside initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 25, stiffness: 200 }}
-              className="absolute left-0 top-0 bottom-0 w-[240px] z-10">
-              <Sidebar onClose={() => setMobileOpen(false)} />
+              className="absolute left-3 top-3 bottom-3 w-[260px] z-10 backdrop-blur-[40px] bg-white/20 border-[1.5px] border-white/60 shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),0_12px_40px_rgba(31,38,135,0.15)] rounded-[2.5rem] overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-white/30 via-transparent to-white/10 pointer-events-none" />
+              <div className="relative z-10 flex flex-col h-full"><Sidebar onClose={() => setMobileOpen(false)} /></div>
             </motion.aside>
           </div>
         )}
       </AnimatePresence>
 
-      <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="h-16 bg-white border-b border-gray-100 flex items-center justify-between px-5 flex-shrink-0 z-30">
-          <button onClick={() => setMobileOpen(true)}
-            className="text-gray-400 hover:text-gray-600 transition md:hidden p-2 -ml-2" aria-label="Menu">
-            <Menu className="w-5 h-5" />
-          </button>
+      <div className="flex-1 flex flex-col overflow-hidden gap-5 z-10">
+        {/* Header Glass Panel */}
+        <header className="h-[72px] backdrop-blur-[40px] bg-white/20 border-[1.5px] border-white/60 shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),inset_0_-1px_2px_rgba(255,255,255,0.3),0_12px_40px_rgba(31,38,135,0.08)] rounded-[2rem] flex items-center justify-between px-5 md:px-7 flex-shrink-0 z-30 relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-r from-white/30 via-transparent to-white/10 pointer-events-none" />
+          
+          <div className="relative z-10 flex items-center w-full justify-between">
+            <button onClick={() => setMobileOpen(true)}
+              className="text-indigo-600/70 hover:text-indigo-800 transition md:hidden bg-white/30 p-2.5 rounded-2xl shadow-[inset_0_1px_1px_rgba(255,255,255,1)] border border-white/50" aria-label="Menu">
+              <Menu className="w-5 h-5" />
+            </button>
 
-          <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm text-gray-400 w-72 cursor-text hover:border-blue-300 transition-colors">
-            <Search className="w-4 h-4 shrink-0" />
-            <span className="text-[13px]">Tìm kiếm...</span>
-            <span className="ml-auto text-[11px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded font-mono">⌘K</span>
-          </div>
+            <div className="hidden md:flex items-center gap-2 px-5 py-2.5 bg-white/30 border-[1.5px] border-white/60 shadow-[inset_0_2px_3px_rgba(0,0,0,0.03),0_4px_12px_rgba(31,38,135,0.05)] rounded-2xl text-sm text-indigo-900/60 w-[340px] cursor-text hover:bg-white/40 transition-all">
+              <Search className="w-4 h-4 shrink-0 text-indigo-500/80" />
+              <span className="text-[13.5px] font-semibold tracking-wide">Tìm kiếm...</span>
+              <span className="ml-auto text-[10px] bg-white/40 border border-white/60 text-indigo-500/80 shadow-sm px-2 py-0.5 rounded-lg font-black uppercase tracking-wider drop-shadow-sm">⌘K</span>
+            </div>
 
-          <div className="flex items-center gap-3">
-            {/* Background analysis indicator — replaces the Phân Tích CV button when running */}
-            <BackgroundAnalysisIndicator />
-            <Link href="/dashboard/upload"
-              className="hidden md:flex items-center gap-2 text-[13px] font-semibold px-4 py-2 bg-[#3b82f6] text-white rounded-xl hover:bg-blue-600 transition-all shadow-md shadow-blue-200 hover:shadow-blue-300">
-              <Plus className="w-4 h-4" /> Phân Tích CV
-            </Link>
+            <div className="flex items-center gap-3.5">
+              <BackgroundAnalysisIndicator />
+              <Link href="/dashboard/upload"
+                className="hidden md:flex items-center gap-2 text-[13.5px] font-bold px-6 py-3 bg-gradient-to-tr from-blue-500 via-indigo-500 to-purple-500 text-white rounded-2xl hover:opacity-90 transition-all shadow-[0_6px_25px_rgba(99,102,241,0.5),inset_0_2px_2px_rgba(255,255,255,0.4)]">
+                <Plus className="w-4 h-4" /> Phân Tích CV
+              </Link>
 
-            <NotificationBell />
-            <UserMenu />
+              <NotificationBell />
+              <UserMenu />
+            </div>
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto">
-          <div className="max-w-[1200px] mx-auto w-full p-6">
+        {/* Main Content Area */}
+        <main className="flex-1 overflow-y-auto rounded-[2.5rem] scrollbar-hide">
+          <div className="max-w-[1200px] mx-auto w-full pb-10">
             {children}
           </div>
         </main>

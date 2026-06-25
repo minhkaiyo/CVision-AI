@@ -8,7 +8,7 @@
 
 import { getAccessToken } from "./auth";
 
-const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const BASE = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
 
 // ── Auth header helper ───────────────────────────────────────────────────────
 
@@ -153,11 +153,15 @@ export async function apiDeleteCVVersion(id: string) {
   return request<{ status: string }>(`/cv-versions/${id}`, { method: "DELETE" });
 }
 
-export async function apiExportCVPDF(id: string): Promise<Blob> {
+export async function apiExportCVPDF(id: string, sourceContext?: Record<string, unknown>): Promise<Blob> {
   const authHeader = await getAuthHeader();
   const res = await fetch(`${BASE}/cv-versions/${id}/export-pdf`, {
     method: "POST",
-    headers: authHeader,
+    headers: {
+      ...authHeader,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ source_context: sourceContext }),
   });
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
@@ -190,7 +194,7 @@ export async function apiGenerateCoverLetter(payload: {
   language?: string;
   length?: string;
 }) {
-  return request<{ status: string; cover_letter: string }>("/advanced-ai/cover-letter", {
+  return request<{ status: string; cover_letter: string }>("/cover-letter", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

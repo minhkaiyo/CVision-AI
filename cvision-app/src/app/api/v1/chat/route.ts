@@ -30,7 +30,7 @@ const SYSTEM_PROMPT =
   "Hãy trả lời bằng tiếng Việt rõ ràng, chuyên nghiệp, có chiều sâu nhưng không lan man. " +
   "Khi người dùng gửi CV, JD, ảnh hoặc tài liệu, hãy phân tích theo góc nhìn thực dụng: ATS, nội dung, mức độ phù hợp, điểm mạnh, điểm yếu và bước cải thiện tiếp theo.";
 
-const BACKEND_BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+const BACKEND_BASE = process.env.NEXT_PUBLIC_API_URL;
 
 const DEFAULT_MODELS: Record<ChatProvider, string> = {
   openai: "gpt-4o-mini",
@@ -54,6 +54,7 @@ function parseDataUrl(url: string): { mimeType: string; data: string } | null {
 }
 
 async function fetchGlobalConfig(): Promise<GlobalLlmConfig> {
+  if (!BACKEND_BASE) return {};
   try {
     const res = await fetch(`${BACKEND_BASE}/config/llm-api-key`, { cache: "no-store" });
     if (!res.ok) return {};

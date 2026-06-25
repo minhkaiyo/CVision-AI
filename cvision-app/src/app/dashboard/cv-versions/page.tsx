@@ -11,7 +11,7 @@ import { toast } from "@/components/ui/toast";
 import { useRouter } from "next/navigation";
 
 // ── Shared UI Styles ─────────────────────────────────────────────────────────
-const glassCard = "backdrop-blur-xl bg-white/90 border border-white/60 shadow-sm rounded-3xl";
+const glassCard = "backdrop-blur-[40px] bg-white/20 border-[1.5px] border-white/60 shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),inset_0_-1px_2px_rgba(255,255,255,0.3),0_12px_40px_rgba(31,38,135,0.1)] rounded-[2.5rem] relative overflow-hidden";
 
 // ── Generate CV Version modal ─────────────────────────────────
 function GenerateModal({
@@ -32,7 +32,7 @@ function GenerateModal({
 
     setLoading(true);
     try {
-      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000/api/v1";
+      const apiBase = process.env.NEXT_PUBLIC_API_URL ?? "/api/v1";
       let diffs: DiffItem[] = [];
       let optimizedMarkdown = "";
       let backendVersionId: string | undefined;
@@ -45,6 +45,7 @@ function GenerateModal({
             resume_id: analysis.resume_id,
             job_id: analysis.job_id,
             analysis_id: analysis.analysis_id,
+            source_context: { analysis },
           }),
         }).catch(() => null);
 
@@ -267,7 +268,8 @@ export default function CVVersions() {
   const handleDownload = async (v: CVVersion) => {
     setExportingId(v.id);
     try {
-      const blob = await apiExportCVPDF(v.id);
+      const sourceAnalysis = analyses.find((analysis) => analysis.analysis_id === v.analysis_id);
+      const blob = await apiExportCVPDF(v.id, { version: v, analysis: sourceAnalysis });
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

@@ -86,7 +86,7 @@ const TEMPLATES: Template[] = [
 const FILTERS = ["Tất cả", "ATS Max", "Tech", "Formal", "Creative"];
 
 // ── Shared Glassmorphism Styles ──────────────────────────────────────────────
-const glassCard = "backdrop-blur-xl bg-white/80 border border-white/60 shadow-sm rounded-2xl";
+const glassCard = "backdrop-blur-[40px] bg-white/20 border-[1.5px] border-white/60 shadow-[inset_0_2px_4px_rgba(255,255,255,0.8),inset_0_-1px_2px_rgba(255,255,255,0.3),0_12px_40px_rgba(31,38,135,0.1)] rounded-[2.5rem] relative";
 
 // ── Realistic Template Preview Graphic ─────────────────────────────────────────
 function ResumePreviewMock({ template }: { template: Template }) {
