@@ -64,15 +64,27 @@ def query_documents(
     descending: bool = False,
     limit: int | None = None,
 ) -> list[dict[str, Any]]:
+    """Query Firestore documents.
+
+    NOTE: order_by is applied in Python (not Firestore) to avoid requiring
+    composite indexes. This is fine for small collections (< 1000 docs per user).
+    For large-scale deployments, create the necessary Firestore composite indexes.
+    """
     query = get_db().collection(collection)
     for field, operator, value in filters or []:
         query = query.where(filter=FieldFilter(field, operator, value))
-    if order_by:
-        direction = "DESCENDING" if descending else "ASCENDING"
-        query = query.order_by(order_by, direction=direction)
-    if limit:
+    # Do NOT pass order_by to Firestore — sort in Python to avoid index errors
+    if limit and not order_by:
         query = query.limit(limit)
-    return [_normalize_snapshot(doc) for doc in query.stream() if _normalize_snapshot(doc)]
+    results = [_normalize_snapshot(doc) for doc in query.stream() if _normalize_snapshot(doc)]
+    if order_by:
+        results.sort(
+            key=lambda x: x.get(order_by) or "",
+            reverse=descending,
+        )
+    if limit:
+        results = results[:limit]
+    return results
 
 
 def count_documents(collection: str, filters: list[tuple[str, str, Any]] | None = None) -> int:

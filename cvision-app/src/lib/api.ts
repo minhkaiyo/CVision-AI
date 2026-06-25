@@ -166,6 +166,19 @@ export async function apiExportCVPDF(id: string): Promise<Blob> {
   return res.blob();
 }
 
+export async function apiGenerateTemplateCV(payload: {
+  source_id: string;
+  source_type: "version" | "analysis";
+  template_id: string;
+  source_context?: Record<string, unknown>;
+}) {
+  return request<{ status: string; title: string; html: string }>("/cv-versions/template-html", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+}
+
 // ── Cover Letter ──────────────────────────────────────────────────────────────
 
 export async function apiGenerateCoverLetter(payload: {
@@ -174,6 +187,8 @@ export async function apiGenerateCoverLetter(payload: {
   job_description?: string;
   resume_markdown?: string;
   tone?: string;
+  language?: string;
+  length?: string;
 }) {
   return request<{ status: string; cover_letter: string }>("/advanced-ai/cover-letter", {
     method: "POST",

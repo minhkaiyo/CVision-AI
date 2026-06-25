@@ -37,6 +37,7 @@ interface LLMConfig {
   api_key: string;
   api_base?: string | null;
   reasoning_effort?: string | null;
+  auto_rotate?: boolean;
 }
 
 interface FeatureConfig {

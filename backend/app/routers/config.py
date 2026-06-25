@@ -105,6 +105,7 @@ async def get_llm_config_endpoint() -> LLMConfigResponse:
         api_key=_mask_api_key(resolve_api_key(stored, provider)),
         api_base=stored.get("api_base", settings.llm_api_base),
         reasoning_effort=reasoning_effort or None,
+        auto_rotate=bool(stored.get("auto_rotate", False)),
     )
 
 
@@ -142,6 +143,8 @@ async def update_llm_config(
     if "api_base" in request.model_fields_set:
         cleaned = (request.api_base or "").strip()
         stored["api_base"] = cleaned or None
+    if request.auto_rotate is not None:
+        stored["auto_rotate"] = request.auto_rotate
     if request.reasoning_effort is not None:
         # Persist empty string on clear so the gpt-5 auto-migration doesn't
         # re-fire on next get_llm_config() call.
@@ -157,6 +160,7 @@ async def update_llm_config(
         api_key=resolve_api_key(stored, resolved_provider),
         api_base=stored.get("api_base", settings.llm_api_base),
         reasoning_effort=resolved_reasoning_effort,
+        auto_rotate=bool(stored.get("auto_rotate", False)),
     )
 
     # Save config regardless of health check outcome (see docstring).
@@ -171,6 +175,7 @@ async def update_llm_config(
         api_key=_mask_api_key(test_config.api_key),
         api_base=test_config.api_base,
         reasoning_effort=test_config.reasoning_effort,
+        auto_rotate=test_config.auto_rotate,
     )
 
 
@@ -210,6 +215,11 @@ async def test_llm_connection(request: LLMConfigRequest | None = None) -> dict:
             (request.reasoning_effort or None)
             if request and request.reasoning_effort is not None
             else (stored.get("reasoning_effort") or settings.reasoning_effort) or None
+        ),
+        auto_rotate=(
+            request.auto_rotate
+            if request and request.auto_rotate is not None
+            else bool(stored.get("auto_rotate", False))
         ),
     )
 

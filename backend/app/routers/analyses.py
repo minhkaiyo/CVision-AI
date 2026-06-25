@@ -7,6 +7,7 @@ import logging
 from app.services.parser import parse_document, parse_resume_to_json
 from app.services.improver import extract_job_keywords
 from app.services.layout_analyzer import analyze_document_layout, layout_to_score_inputs
+from app.services.fallback_processing import analyze_resume_fallback
 from app.auth import verify_user, check_usage_limit, log_usage
 from app.firebase_store import add_document, delete_document, get_document, query_documents
 from app.llm import complete_json
@@ -350,6 +351,19 @@ Tất cả bằng tiếng Việt. Không bịa đặt thông tin không có tron
             })
     except Exception as e:
         logger.warning(f"LLM enrichment failed (non-blocking): {e}")
+        score_result = analyze_resume_fallback(
+            score_result=score_result,
+            resume_text=resume_text,
+            role=role,
+            jd=jd,
+        )
+    if not score_result.get("summary"):
+        score_result = analyze_resume_fallback(
+            score_result=score_result,
+            resume_text=resume_text,
+            role=role,
+            jd=jd,
+        )
     return score_result
 
 

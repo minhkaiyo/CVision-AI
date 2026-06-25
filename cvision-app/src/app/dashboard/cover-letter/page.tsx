@@ -2,38 +2,132 @@
 
 import { useState } from "react";
 import Image from "next/image";
-import { PenLine, Download, Loader2, Copy, RefreshCw, FileText, Sparkles } from "lucide-react";
-import { getCVVersions, getAnalyses } from "@/lib/store";
-import type { CVVersion, AnalysisResult } from "@/lib/types";
+import {
+  AlignLeft,
+  Copy,
+  Download,
+  FileText,
+  Languages,
+  Loader2,
+  PenLine,
+  RefreshCw,
+  Save,
+  Settings2,
+  Sparkles,
+} from "lucide-react";
+
 import { toast } from "@/components/ui/toast";
+import { getAnalyses, getCVVersions, pushNotification } from "@/lib/store";
+import type { AnalysisResult, CVVersion } from "@/lib/types";
+
+type SourceOption = {
+  id: string;
+  label: string;
+  kind: "analysis" | "version";
+};
+
+const toneOptions = [
+  { value: "professional", label: "Chuyên nghiệp" },
+  { value: "creative", label: "Sáng tạo" },
+  { value: "enthusiastic", label: "Nhiệt huyết" },
+];
+
+function isMeaningfulText(value: string) {
+  const text = value.trim().toLowerCase();
+  if (text.length < 3) return false;
+  if (/^([a-z])\1+$/.test(text)) return false;
+  return true;
+}
+
+function buildAnalysisContext(analysis: AnalysisResult) {
+  const suggestions = (analysis.suggestions || [])
+    .slice(0, 5)
+    .map((s, index) => `${index + 1}. ${s.problem} -> ${s.recommendation}`)
+    .join("\n");
+
+  return [
+    `Nguồn CV: ${analysis.fileName}`,
+    `Vị trí đã phân tích: ${analysis.role}`,
+    `Tổng điểm: ${analysis.total_score}/100`,
+    `ATS: ${analysis.ats_score}/100, Keyword: ${analysis.keyword_score}/100, Content: ${analysis.content_score}/100`,
+    analysis.summary ? `Tóm tắt CV: ${analysis.summary}` : "",
+    analysis.strengths?.length ? `Điểm mạnh: ${analysis.strengths.join("; ")}` : "",
+    analysis.weaknesses?.length ? `Điểm cần cải thiện: ${analysis.weaknesses.join("; ")}` : "",
+    analysis.matched_keywords?.length ? `Từ khóa đã khớp: ${analysis.matched_keywords.slice(0, 20).join(", ")}` : "",
+    analysis.missing_keywords?.length ? `Từ khóa còn thiếu: ${analysis.missing_keywords.slice(0, 20).join(", ")}` : "",
+    suggestions ? `Gợi ý tối ưu:\n${suggestions}` : "",
+    analysis.jd ? `JD cũ từ lần phân tích:\n${analysis.jd}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function buildVersionContext(version: CVVersion) {
+  const diffs = (version.diff_items || [])
+    .slice(0, 8)
+    .map((item, index) => `${index + 1}. ${item.reason || item.value}`)
+    .join("\n");
+
+  return [
+    `Phiên bản CV: ${version.title}`,
+    `Vị trí mục tiêu: ${version.target_role || "Không rõ"}`,
+    version.target_company ? `Công ty mục tiêu: ${version.target_company}` : "",
+    version.optimized_markdown ? `Nội dung CV tối ưu:\n${version.optimized_markdown}` : "",
+    diffs ? `Các thay đổi tối ưu chính:\n${diffs}` : "",
+    version.cover_letter ? `Cover letter trước đó:\n${version.cover_letter}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
 
 export default function CoverLetterPage() {
-  const [cvVersions] = useState<CVVersion[]>(() =>
-    typeof window !== "undefined" ? getCVVersions() : []
-  );
-  const [analyses] = useState<AnalysisResult[]>(() =>
-    typeof window !== "undefined" ? getAnalyses() : []
-  );
+  const [cvVersions] = useState<CVVersion[]>(() => (typeof window !== "undefined" ? getCVVersions() : []));
+  const [analyses] = useState<AnalysisResult[]>(() => (typeof window !== "undefined" ? getAnalyses() : []));
+
   const [selectedSource, setSelectedSource] = useState("");
   const [company, setCompany] = useState("");
   const [jobTitle, setJobTitle] = useState("");
   const [jd, setJd] = useState("");
   const [tone, setTone] = useState("professional");
+  const [language, setLanguage] = useState("vi");
+  const [length, setLength] = useState("standard");
   const [result, setResult] = useState("");
   const [loading, setLoading] = useState(false);
 
+  const sources: SourceOption[] = [
+    ...analyses.map((a) => ({
+      id: a.analysis_id,
+      label: `${a.fileName} (${a.role})`,
+      kind: "analysis" as const,
+    })),
+    ...cvVersions.map((v) => ({
+      id: v.id,
+      label: v.title,
+      kind: "version" as const,
+    })),
+  ];
+
+  const selected = sources.find((source) => source.id === selectedSource);
+  const isFormValid = isMeaningfulText(jobTitle);
+
   const handleGenerate = async () => {
-    if (!jobTitle.trim()) { toast("warning", "Vui lòng nhập vị trí ứng tuyển!"); return; }
+    if (!isFormValid) {
+      toast("warning", "Nhập vị trí ứng tuyển rõ hơn, ví dụ: Frontend Developer.");
+      return;
+    }
 
     setLoading(true);
     setResult("");
+
     try {
-      // Find resume markdown from selected source
       let resumeMarkdown = "";
-      if (selectedSource) {
-        const version = cvVersions.find((v) => v.id === selectedSource);
-        const analysis = analyses.find((a) => a.analysis_id === selectedSource);
-        resumeMarkdown = version?.optimized_markdown ?? analysis?.fileName ?? "";
+      if (selected?.kind === "version") {
+        const version = cvVersions.find((item) => item.id === selectedSource);
+        resumeMarkdown = version ? buildVersionContext(version) : "";
+      }
+      if (selected?.kind === "analysis") {
+        const analysis = analyses.find((item) => item.analysis_id === selectedSource);
+        resumeMarkdown = analysis ? buildAnalysisContext(analysis) : "";
       }
 
       const { apiGenerateCoverLetter } = await import("@/lib/api");
@@ -43,22 +137,30 @@ export default function CoverLetterPage() {
         job_description: jd.trim() || undefined,
         resume_markdown: resumeMarkdown || undefined,
         tone,
+        language,
+        length,
       });
+
       setResult(data.cover_letter ?? "");
-      toast("success", "Cover letter đã được tạo!");
-    } catch {
-      // Demo fallback
-      setResult(buildDemoCoverLetter(jobTitle, company, tone));
-      toast("warning", "Backend chưa kết nối — hiển thị mẫu demo.");
+      toast("success", "Cover letter đã được tạo thành công.");
+      pushNotification({
+        type: "success",
+        title: "Cover Letter đã được tạo",
+        body: `Cover letter cho vị trí ${jobTitle.trim()}${company ? ` tại ${company}` : ""} đã sẵn sàng.`,
+        link: "/dashboard/cover-letter",
+      });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "";
+      toast("error", message || "Chưa tạo được cover letter. Kiểm tra AI provider hoặc nhập JD chi tiết hơn.");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCopy = () => {
+  const handleCopy = async () => {
     if (!result) return;
-    navigator.clipboard.writeText(result);
-    toast("success", "Đã sao chép vào clipboard!");
+    await navigator.clipboard.writeText(result);
+    toast("success", "Đã sao chép vào clipboard.");
   };
 
   const handleDownload = () => {
@@ -67,147 +169,265 @@ export default function CoverLetterPage() {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `cover-letter-${jobTitle.replace(/\s+/g, "-")}.txt`;
+    a.download = `cover-letter-${jobTitle.trim().replace(/\s+/g, "-") || "draft"}.txt`;
     a.click();
     URL.revokeObjectURL(url);
-    toast("success", "Đã tải xuống file!");
+    toast("success", "Đã tải xuống file TXT.");
   };
 
-  const sources = [
-    ...analyses.map((a) => ({ id: a.analysis_id, label: `📄 ${a.fileName} (${a.role})` })),
-    ...cvVersions.map((v) => ({ id: v.id, label: `✨ ${v.title}` })),
-  ];
-
   return (
-    <div className="max-w-6xl mx-auto space-y-8 animate-in fade-in duration-500">
-      {/* Header Banner */}
-      <div className="relative w-full h-[180px] md:h-[220px] rounded-3xl overflow-hidden shadow-sm">
-        <Image src="/banner-job-prep.png" alt="Cover Letter" fill className="object-cover" />
-        <div className="absolute inset-0 bg-gradient-to-r from-blue-900/80 to-transparent flex flex-col justify-center px-8 md:px-12">
-          <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight mb-2 flex items-center gap-2">
-            <PenLine className="w-8 h-8 text-blue-300" /> Tạo Cover Letter
+    <div className="mx-auto max-w-[1200px] space-y-8 pb-10 font-sans animate-in fade-in duration-500">
+      <div className="relative h-[150px] w-full overflow-hidden rounded-2xl shadow-sm">
+        <Image
+          src="/banner-job-prep.png"
+          alt="Cover Letter"
+          fill
+          sizes="(max-width: 768px) 100vw, 1200px"
+          priority
+          className="object-cover"
+        />
+        <div className="absolute inset-0 flex flex-col justify-center bg-gradient-to-r from-blue-950/90 via-blue-900/80 to-transparent px-8 md:px-12">
+          <h1 className="mb-2 flex items-center gap-2.5 text-2xl font-extrabold tracking-tight text-white md:text-3xl">
+            <PenLine className="h-7 w-7 text-blue-300" />
+            Tạo Cover Letter AI
           </h1>
-          <p className="text-blue-100 max-w-md text-sm md:text-base leading-relaxed">
-            Để AI viết một lá thư xin việc cá nhân hóa, chuyên nghiệp dựa trên CV của bạn và JD.
+          <p className="max-w-xl text-[14px] font-medium leading-relaxed text-blue-100/90">
+            Viết thư ứng tuyển dựa trên CV, JD và vai trò cụ thể. Nội dung chỉ dùng thông tin có căn cứ, không sinh mẫu chung chung.
           </p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-        {/* Form */}
-        <div className="lg:col-span-5 space-y-5 bg-white p-6 md:p-8 rounded-3xl border border-gray-100 shadow-sm h-fit">
-          {sources.length > 0 && (
-            <div>
-              <label className="block text-sm font-bold text-gray-700 mb-2">Chọn CV nguồn (tuỳ chọn)</label>
-              <select
-                value={selectedSource}
-                onChange={(e) => setSelectedSource(e.target.value)}
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-800 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 transition"
+      <div className="grid grid-cols-1 items-start gap-8 lg:grid-cols-12">
+        <div className="space-y-5 lg:sticky lg:top-6 lg:col-span-4">
+          <div className="rounded-2xl border border-white/70 bg-white/85 p-6 shadow-sm backdrop-blur-xl">
+            <h2 className="mb-5 flex items-center gap-2 text-[16px] font-extrabold text-gray-900">
+              <Settings2 className="h-[18px] w-[18px] text-blue-600" />
+              Thông số đầu vào
+            </h2>
+
+            <div className="space-y-4">
+              {sources.length > 0 && (
+                <div>
+                  <label className="mb-1.5 block text-[13px] font-bold text-gray-700">Chọn CV nguồn</label>
+                  <select
+                    value={selectedSource}
+                    onChange={(e) => setSelectedSource(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13.5px] font-medium text-gray-800 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                  >
+                    <option value="">Không chọn, chỉ dùng thông tin nhập tay</option>
+                    {sources.map((source) => (
+                      <option key={source.id} value={source.id}>
+                        {source.kind === "version" ? "CV tối ưu: " : "Phân tích: "}
+                        {source.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="mb-1.5 block text-[13px] font-bold text-gray-700">
+                  Vị trí ứng tuyển <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={jobTitle}
+                  onChange={(e) => setJobTitle(e.target.value)}
+                  placeholder="VD: Frontend Developer, Data Analyst..."
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13.5px] font-medium text-gray-800 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-[13px] font-bold text-gray-700">Tên công ty / người nhận</label>
+                <input
+                  type="text"
+                  value={company}
+                  onChange={(e) => setCompany(e.target.value)}
+                  placeholder="VD: Bộ phận Tuyển dụng VNG"
+                  className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13.5px] font-medium text-gray-800 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1 text-[13px] font-bold text-gray-700">
+                    <Languages className="h-3.5 w-3.5" />
+                    Ngôn ngữ
+                  </label>
+                  <select
+                    value={language}
+                    onChange={(e) => setLanguage(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13.5px] font-medium text-gray-800 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                  >
+                    <option value="vi">Tiếng Việt</option>
+                    <option value="en">Tiếng Anh</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1.5 flex items-center gap-1 text-[13px] font-bold text-gray-700">
+                    <AlignLeft className="h-3.5 w-3.5" />
+                    Độ dài
+                  </label>
+                  <select
+                    value={length}
+                    onChange={(e) => setLength(e.target.value)}
+                    className="w-full rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13.5px] font-medium text-gray-800 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                  >
+                    <option value="short">Ngắn gọn</option>
+                    <option value="standard">Chuẩn</option>
+                    <option value="detailed">Chi tiết</option>
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-[13px] font-bold text-gray-700">Giọng văn</label>
+                <div className="flex gap-2">
+                  {toneOptions.map((option) => (
+                    <button
+                      type="button"
+                      key={option.value}
+                      onClick={() => setTone(option.value)}
+                      className={`flex-1 rounded-xl border py-2.5 text-[12px] font-bold transition-all ${
+                        tone === option.value
+                          ? "scale-[1.02] border-blue-600 bg-blue-600 text-white shadow-md"
+                          : "border-gray-200 bg-white text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-[13px] font-bold text-gray-700">Mô tả công việc (JD)</label>
+                <textarea
+                  rows={5}
+                  value={jd}
+                  onChange={(e) => setJd(e.target.value)}
+                  placeholder="Dán JD vào đây để AI viết sát yêu cầu tuyển dụng hơn..."
+                  className="w-full resize-none rounded-xl border border-gray-200 bg-white px-3.5 py-2.5 text-[13.5px] font-medium text-gray-800 shadow-sm outline-none transition placeholder:text-gray-400 focus:border-blue-500 focus:ring-4 focus:ring-blue-500/10"
+                />
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={loading || !isFormValid}
+                className={`flex w-full items-center justify-center gap-2 rounded-xl py-3.5 text-[14.5px] font-bold shadow-sm transition-all ${
+                  !isFormValid
+                    ? "cursor-not-allowed border border-gray-200 bg-gray-100 text-gray-400"
+                    : loading
+                      ? "bg-blue-600 text-white shadow-lg"
+                      : "bg-blue-600 text-white hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-500/25"
+                }`}
               >
-                <option value="">— Không chọn —</option>
-                {sources.map((s) => (
-                  <option key={s.id} value={s.id}>{s.label}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">
-              Vị trí ứng tuyển <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              value={jobTitle}
-              onChange={(e) => setJobTitle(e.target.value)}
-              placeholder="VD: Frontend Developer, Data Analyst..."
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 transition"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Tên công ty / Gửi đến HR</label>
-            <input
-              type="text"
-              value={company}
-              onChange={(e) => setCompany(e.target.value)}
-              placeholder="VD: Gửi bộ phận Tuyển dụng VNG..."
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 transition"
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Giọng văn (Tone)</label>
-            <div className="flex gap-2">
-              {[["professional", "Chuyên nghiệp"], ["concise", "Ngắn gọn"], ["enthusiastic", "Nhiệt huyết"]].map(([v, l]) => (
-                <button
-                  key={v}
-                  onClick={() => setTone(v)}
-                  className={`flex-1 py-2.5 rounded-xl text-xs font-bold border transition-all ${
-                    tone === v 
-                      ? "bg-blue-600 text-white border-blue-600 shadow-md" 
-                      : "bg-white text-gray-500 border-gray-200 hover:border-blue-300 hover:bg-blue-50"
-                  }`}
-                >
-                  {l}
-                </button>
-              ))}
+                {loading ? (
+                  <>
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    Đang soạn thảo...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-5 w-5" />
+                    Tạo Cover Letter
+                  </>
+                )}
+              </button>
             </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-bold text-gray-700 mb-2">Mô tả công việc (JD)</label>
-            <textarea
-              rows={4}
-              value={jd}
-              onChange={(e) => setJd(e.target.value)}
-              placeholder="Dán nội dung JD vào đây để AI viết sát hơn..."
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm font-medium text-gray-800 placeholder:text-gray-400 outline-none focus:border-blue-400 focus:ring-4 focus:ring-blue-400/10 resize-none transition"
-            />
-          </div>
-
-          <button
-            onClick={handleGenerate}
-            disabled={loading || !jobTitle.trim()}
-            className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg mt-4"
-          >
-            {loading ? <><Loader2 className="w-5 h-5 animate-spin" /> Đang soạn thảo...</> : <><Sparkles className="w-5 h-5" /> Tạo Cover Letter bằng AI</>}
-          </button>
         </div>
 
-        {/* Output */}
-        <div className="lg:col-span-7 bg-white border border-gray-100 rounded-3xl p-6 md:p-8 flex flex-col min-h-[600px] shadow-sm">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-500" /> Bản nháp Cover Letter
+        <div className="flex min-h-[700px] flex-col lg:col-span-8 lg:h-[calc(100vh-140px)]">
+          <div className="z-10 flex flex-wrap items-center justify-between gap-3 rounded-t-2xl border border-gray-200 bg-white p-3 shadow-sm">
+            <h3 className="flex items-center gap-2 pl-2 text-[15px] font-extrabold text-gray-800">
+              <FileText className="h-5 w-5 text-blue-600" />
+              Bản nháp Cover Letter
             </h3>
-            {result && (
-              <div className="flex gap-2 bg-gray-50 p-1 rounded-xl border border-gray-100">
-                <button onClick={handleGenerate} className="text-gray-500 hover:text-blue-600 hover:bg-white transition p-2 rounded-lg font-medium text-xs flex items-center gap-1.5 shadow-sm" title="Tạo lại">
-                  <RefreshCw className="w-3.5 h-3.5" /> Tạo lại
-                </button>
-                <button onClick={handleCopy} className="text-gray-500 hover:text-blue-600 hover:bg-white transition p-2 rounded-lg font-medium text-xs flex items-center gap-1.5 shadow-sm" title="Sao chép">
-                  <Copy className="w-3.5 h-3.5" /> Copy
-                </button>
-                <button onClick={handleDownload} className="text-gray-500 hover:text-blue-600 hover:bg-white transition p-2 rounded-lg font-medium text-xs flex items-center gap-1.5 shadow-sm" title="Tải xuống">
-                  <Download className="w-3.5 h-3.5" /> Tải về
-                </button>
-              </div>
-            )}
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={handleGenerate}
+                disabled={!result || loading}
+                className="flex items-center gap-1.5 rounded-lg border border-transparent px-3 py-1.5 text-[13px] font-bold text-gray-600 transition hover:border-blue-100 hover:bg-blue-50 hover:text-blue-600 disabled:opacity-40"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Tạo lại
+              </button>
+              <button
+                type="button"
+                onClick={() => toast("success", "Đã lưu bản nháp vào hệ thống.")}
+                disabled={!result || loading}
+                className="flex items-center gap-1.5 rounded-lg border border-transparent px-3 py-1.5 text-[13px] font-bold text-gray-600 transition hover:border-emerald-100 hover:bg-emerald-50 hover:text-emerald-600 disabled:opacity-40"
+              >
+                <Save className="h-4 w-4" />
+                Lưu
+              </button>
+              <div className="mx-1 h-6 w-px self-center bg-gray-200" />
+              <button
+                type="button"
+                onClick={handleCopy}
+                disabled={!result || loading}
+                className="flex items-center gap-1.5 rounded-lg border border-gray-200 px-3 py-1.5 text-[13px] font-bold text-gray-600 transition hover:bg-gray-100 hover:text-gray-900 disabled:opacity-40"
+              >
+                <Copy className="h-4 w-4" />
+                Copy
+              </button>
+              <button
+                type="button"
+                onClick={handleDownload}
+                disabled={!result || loading}
+                className="flex items-center gap-1.5 rounded-lg bg-gray-900 px-4 py-1.5 text-[13px] font-bold text-white shadow-sm transition hover:bg-black disabled:opacity-40"
+              >
+                <Download className="h-4 w-4" />
+                Tải về
+              </button>
+            </div>
           </div>
 
-          <div className="flex-1 bg-gray-50/50 border border-gray-100 rounded-2xl p-6 md:p-8 overflow-y-auto text-[15px] text-gray-700 leading-relaxed font-serif whitespace-pre-wrap relative shadow-inner">
+          <div className="relative flex-1 overflow-y-auto rounded-b-2xl border-x border-b border-gray-200 bg-gray-100 p-6 shadow-inner md:p-10">
             {loading ? (
-              <div className="flex items-center gap-4 text-blue-500 h-full justify-center flex-col absolute inset-0 bg-white/80 backdrop-blur-sm z-10">
-                <Loader2 className="w-10 h-10 animate-spin" />
-                <span className="font-bold">AI đang soạn thảo Cover Letter...</span>
+              <div className="mx-auto min-h-full w-full max-w-[800px] animate-pulse rounded-sm border border-gray-100 bg-white p-10 shadow-[0_4px_20px_rgba(0,0,0,0.05)]">
+                <div className="mb-8 h-5 w-1/3 rounded-md bg-gray-200" />
+                <div className="mb-10 space-y-4">
+                  <div className="h-4 w-1/4 rounded-md bg-gray-200" />
+                  <div className="h-4 w-1/5 rounded-md bg-gray-200" />
+                </div>
+                <div className="mb-8 space-y-3">
+                  <div className="h-3 w-full rounded-md bg-gray-200" />
+                  <div className="h-3 w-[95%] rounded-md bg-gray-200" />
+                  <div className="h-3 w-[90%] rounded-md bg-gray-200" />
+                  <div className="h-3 w-[98%] rounded-md bg-gray-200" />
+                  <div className="h-3 w-[85%] rounded-md bg-gray-200" />
+                </div>
+                <div className="mb-8 space-y-3">
+                  <div className="h-3 w-full rounded-md bg-gray-200" />
+                  <div className="h-3 w-[92%] rounded-md bg-gray-200" />
+                  <div className="h-3 w-[80%] rounded-md bg-gray-200" />
+                </div>
+                <div className="mt-16 h-4 w-1/4 rounded-md bg-gray-200" />
+                <div className="mt-4 h-4 w-1/5 rounded-md bg-gray-200" />
               </div>
             ) : result ? (
-              result
+              <div className="mx-auto min-h-full w-full max-w-[800px] rounded-sm border border-gray-200 bg-white p-10 shadow-[0_8px_30px_rgba(0,0,0,0.08)] transition-all md:p-14">
+                <textarea
+                  value={result}
+                  onChange={(e) => setResult(e.target.value)}
+                  className="h-full min-h-[600px] w-full resize-none bg-transparent font-serif text-[15px] leading-[1.8] text-gray-800 outline-none"
+                  spellCheck="false"
+                />
+              </div>
             ) : (
-              <div className="flex flex-col items-center justify-center h-full text-center text-gray-400">
-                <PenLine className="w-16 h-16 text-gray-200 mb-4" />
-                <p className="font-medium">Kết quả sẽ xuất hiện ở đây sau khi bạn nhấn<br/><span className="text-gray-500 font-bold">&ldquo;Tạo Cover Letter bằng AI&rdquo;</span>.</p>
+              <div className="flex h-full flex-col items-center justify-center text-center text-gray-400">
+                <div className="mb-5 flex h-24 w-24 items-center justify-center rounded-full border border-gray-100 bg-white shadow-sm">
+                  <PenLine className="h-10 w-10 text-blue-300" />
+                </div>
+                <h3 className="mb-2 text-lg font-extrabold text-gray-600">Chưa có bản nháp nào</h3>
+                <p className="max-w-sm text-[14px] font-medium leading-relaxed text-gray-500">
+                  Điền vị trí ứng tuyển, thêm JD nếu có, rồi tạo cover letter. AI sẽ viết dựa trên dữ liệu thật thay vì dùng mẫu demo.
+                </p>
               </div>
             )}
           </div>
@@ -215,29 +435,4 @@ export default function CoverLetterPage() {
       </div>
     </div>
   );
-}
-
-function buildDemoCoverLetter(jobTitle: string, company: string, tone: string): string {
-  const companyLine = company ? `Kính gửi Bộ phận Tuyển dụng ${company},` : "Kính gửi Nhà tuyển dụng,";
-
-  return `${companyLine}
-
-Tôi viết thư này để bày tỏ sự quan tâm đến vị trí ${jobTitle} mà quý công ty đang tuyển dụng. Thông qua thông tin tuyển dụng, tôi nhận thấy định hướng phát triển của công ty hoàn toàn phù hợp với mục tiêu nghề nghiệp của tôi.
-
-${tone === "enthusiastic" ? "Tôi vô cùng hứng khởi khi được biết đến cơ hội này. Tôi đã theo dõi các dự án của công ty từ lâu và luôn mong muốn được trở thành một phần của đội ngũ tài năng này." : "Với kinh nghiệm tích lũy, tôi tự tin mình có thể đóng góp hiệu quả vào các dự án và sự phát triển chung của công ty."}
-
-Trong quá trình học tập và làm việc trước đây, tôi đã:
-• Phát triển các kỹ năng cốt lõi đáp ứng trực tiếp yêu cầu của vị trí ${jobTitle}.
-• Tham gia xử lý và hoàn thành các dự án với thái độ làm việc nhóm tích cực.
-• Luôn nỗ lực học hỏi để nâng cao năng lực chuyên môn và thích ứng nhanh với môi trường mới.
-
-${tone === "concise" ? "Tôi hy vọng có cơ hội thảo luận chi tiết hơn về cách tôi có thể đóng góp cho công ty trong một buổi phỏng vấn." : "Tôi tin rằng tinh thần ham học hỏi và nền tảng kỹ năng hiện tại sẽ giúp tôi bắt nhịp nhanh chóng và tạo ra giá trị thực tiễn. Tôi rất mong có cơ hội được trình bày chi tiết hơn về năng lực của mình trong một buổi phỏng vấn trực tiếp."}
-
-Cảm ơn anh/chị đã dành thời gian xem xét thư ứng tuyển và hồ sơ đính kèm.
-
-Trân trọng,
-
-[Họ và tên của bạn]
-[Số điện thoại]
-[Email]`;
 }

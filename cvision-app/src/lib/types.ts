@@ -70,6 +70,18 @@ export interface ProbabilityEstimate {
   breakdown: Record<string, number>;
 }
 
+export interface CareerSuggestion {
+  role: string;
+  industry: string;
+  priority: "high" | "medium" | "low";
+  match_score: number;
+  reason: string;
+  required_skills: string[];
+  missing_skills: string[];
+  salary_range: string;
+  job_links: { name: string; url: string }[];
+}
+
 export interface CVVersion {
   id: string;
   analysis_id: string;

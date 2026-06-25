@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ReactNode, useState, useEffect, useRef } from "react";
+import { ReactNode, useState, useEffect, useRef, useCallback } from "react";
 import {
   FileText, LogOut, MessageSquare, Plus, User, Layers, Menu, X,
   ChevronDown, Bell, Search, Sparkles, History, Target, Home,
-  ChevronLeft, PenTool, Bookmark, CheckCheck, Info, AlertTriangle,
+  ChevronLeft, PenTool, Bookmark, CheckCheck, Info, AlertTriangle, Loader2,
 } from "lucide-react";
 import Image from "next/image";
 import { useAuthGuard } from "@/lib/use-auth-guard";
@@ -14,45 +14,13 @@ import { toast } from "@/components/ui/toast";
 import { motion, AnimatePresence } from "framer-motion";
 import { AIChatWidget } from "@/components/AIChatWidget";
 import { getProfile, onAppAuthStateChange, signOutAppUser } from "@/lib/auth";
+import {
+  getNotifications, markNotificationRead, markAllNotificationsRead,
+  type AppNotification,
+} from "@/lib/store";
+import { AnalysisProvider, useAnalysis } from "@/lib/analysis-context";
 
-// ── Notification types ────────────────────────────────────────────────────────
-
-interface Notification {
-  id: string;
-  type: "info" | "success" | "warning";
-  title: string;
-  body: string;
-  time: string;
-  read: boolean;
-}
-
-// Demo notifications — in production these would come from Firestore
-const DEMO_NOTIFICATIONS: Notification[] = [
-  {
-    id: "1",
-    type: "success",
-    title: "Phân tích CV hoàn thành",
-    body: "CV của bạn đã được chấm điểm ATS. Xem kết quả ngay.",
-    time: "Vừa xong",
-    read: false,
-  },
-  {
-    id: "2",
-    type: "info",
-    title: "Tính năng mới: Cover Letter AI",
-    body: "Tạo cover letter cá nhân hóa theo JD chỉ trong 30 giây.",
-    time: "1 giờ trước",
-    read: false,
-  },
-  {
-    id: "3",
-    type: "warning",
-    title: "Giới hạn Free tier",
-    body: "Bạn đã dùng 1/1 lần phân tích hôm nay. Nâng cấp để tiếp tục.",
-    time: "2 giờ trước",
-    read: true,
-  },
-];
+// ── Notification helpers ──────────────────────────────────────────────────────
 
 const NOTIF_ICON = {
   info: <Info className="w-4 h-4 text-blue-500" />,
@@ -60,27 +28,51 @@ const NOTIF_ICON = {
   warning: <AlertTriangle className="w-4 h-4 text-amber-500" />,
 };
 
+function relativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "Vừa xong";
+  if (mins < 60) return `${mins} phút trước`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs} giờ trước`;
+  const days = Math.floor(hrs / 24);
+  return `${days} ngày trước`;
+}
+
 // ── NotificationBell ──────────────────────────────────────────────────────────
 
 function NotificationBell() {
   const [open, setOpen] = useState(false);
-  const [notifs, setNotifs] = useState<Notification[]>(DEMO_NOTIFICATIONS);
+  const [notifs, setNotifs] = useState<AppNotification[]>([]);
   const [bannerVisible, setBannerVisible] = useState(false);
-  const [bannerNotif, setBannerNotif] = useState<Notification | null>(null);
+  const [bannerNotif, setBannerNotif] = useState<AppNotification | null>(null);
   const bellRef = useRef<HTMLDivElement>(null);
   const unread = notifs.filter(n => !n.read).length;
+  const bannerShownRef = useRef(false);
 
-  // Show banner for first unread on mount
-  useEffect(() => {
-    const first = notifs.find(n => !n.read);
-    if (first) {
-      setBannerNotif(first);
-      setBannerVisible(true);
-      const t = setTimeout(() => setBannerVisible(false), 4000);
-      return () => clearTimeout(t);
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // Load from localStorage
+  const reload = useCallback(() => {
+    setNotifs(getNotifications());
   }, []);
+
+  useEffect(() => {
+    reload();
+
+    // Listen for real-time pushes from anywhere in the app
+    const onNew = (e: Event) => {
+      const notif = (e as CustomEvent<AppNotification>).detail;
+      reload();
+      // Show banner if not already open
+      if (!bannerShownRef.current) {
+        bannerShownRef.current = true;
+        setBannerNotif(notif);
+        setBannerVisible(true);
+        setTimeout(() => { setBannerVisible(false); bannerShownRef.current = false; }, 5000);
+      }
+    };
+    window.addEventListener("cvision:notification", onNew);
+    return () => window.removeEventListener("cvision:notification", onNew);
+  }, [reload]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -90,8 +82,8 @@ function NotificationBell() {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
-  const markAllRead = () => setNotifs(prev => prev.map(n => ({ ...n, read: true })));
-  const markRead = (id: string) => setNotifs(prev => prev.map(n => n.id === id ? { ...n, read: true } : n));
+  const markAllRead = () => { markAllNotificationsRead(); reload(); };
+  const markRead = (id: string) => { markNotificationRead(id); reload(); };
 
   return (
     <div className="relative" ref={bellRef}>
@@ -169,7 +161,7 @@ function NotificationBell() {
                     <div className="flex-1 min-w-0">
                       <div className={`text-[13px] font-semibold ${n.read ? "text-gray-600" : "text-gray-900"}`}>{n.title}</div>
                       <div className="text-[12px] text-gray-500 mt-0.5 leading-snug">{n.body}</div>
-                      <div className="text-[11px] text-gray-400 mt-1">{n.time}</div>
+                      <div className="text-[11px] text-gray-400 mt-1">{relativeTime(n.createdAt)}</div>
                     </div>
                     {!n.read && <span className="w-2 h-2 bg-blue-500 rounded-full mt-1.5 shrink-0" />}
                   </div>
@@ -434,6 +426,37 @@ function Sidebar({ onClose }: { onClose?: () => void }) {
   );
 }
 
+// ── Background Analysis Indicator ──────────────────────────────────────────
+// Shows in topbar when user navigates away during analysis
+
+function BackgroundAnalysisIndicator() {
+  const { loading, step, role, file } = useAnalysis();
+  const pathname = usePathname();
+  const isOnUploadPage = pathname === "/dashboard/upload";
+
+  // Only show when actively loading AND user is NOT on the upload page
+  if (!loading || isOnUploadPage) return null;
+
+  const stepLabel: Record<string, string> = {
+    uploading: "Đang tải lên...",
+    reading: "Đang đọc file...",
+    analyzing: "AI đang phân tích...",
+    done: "Hoàn tất!",
+  };
+
+  return (
+    <Link
+      href="/dashboard/upload"
+      className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-blue-50 border border-blue-200 rounded-xl text-blue-700 text-[13px] font-bold hover:bg-blue-100 transition-all animate-pulse"
+      title="Nhấn để quay lại trang phân tích"
+    >
+      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+      <span>{stepLabel[step] ?? "Đang xử lý..."}</span>
+      {role && <span className="text-blue-500 font-medium truncate max-w-[100px]">· {role}</span>}
+    </Link>
+  );
+}
+
 // ── Layout ────────────────────────────────────────────────────────────────────
 
 export default function DashboardLayout({ children }: { children: ReactNode }) {
@@ -448,6 +471,24 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     );
   }
 
+  return (
+    <AnalysisProvider>
+      <DashboardShell mobileOpen={mobileOpen} setMobileOpen={setMobileOpen}>
+        {children}
+      </DashboardShell>
+    </AnalysisProvider>
+  );
+}
+
+function DashboardShell({
+  children,
+  mobileOpen,
+  setMobileOpen,
+}: {
+  children: ReactNode;
+  mobileOpen: boolean;
+  setMobileOpen: (v: boolean) => void;
+}) {
   return (
     <div className="flex h-screen bg-[#f5f7fb] font-inter overflow-hidden">
       <aside className="hidden md:flex w-[240px] flex-col flex-shrink-0 z-20">
@@ -482,6 +523,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           </div>
 
           <div className="flex items-center gap-3">
+            {/* Background analysis indicator — replaces the Phân Tích CV button when running */}
+            <BackgroundAnalysisIndicator />
             <Link href="/dashboard/upload"
               className="hidden md:flex items-center gap-2 text-[13px] font-semibold px-4 py-2 bg-[#3b82f6] text-white rounded-xl hover:bg-blue-600 transition-all shadow-md shadow-blue-200 hover:shadow-blue-300">
               <Plus className="w-4 h-4" /> Phân Tích CV

@@ -1,6 +1,6 @@
 "use client";
 // ============================================================
-// Demo store — localStorage-backed state for CVision AI
+// Store — localStorage-backed state for CVision AI
 // Provides a consistent data layer whether or not the backend
 // is connected. When the backend IS connected, we hydrate from
 // its API and write-through to localStorage as a cache.
@@ -11,7 +11,65 @@ import type { AnalysisResult, CVVersion } from "./types";
 const KEYS = {
   analyses: "cvision_analyses",
   cvVersions: "cvision_cv_versions",
+  notifications: "cvision_notifications",
 };
+
+// ── Notification Store ───────────────────────────────────────
+
+export interface AppNotification {
+  id: string;
+  type: "info" | "success" | "warning";
+  title: string;
+  body: string;
+  createdAt: string; // ISO string
+  read: boolean;
+  link?: string; // optional deep-link
+}
+
+export function getNotifications(): AppNotification[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(KEYS.notifications);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function pushNotification(
+  notif: Omit<AppNotification, "id" | "createdAt" | "read">
+): AppNotification {
+  if (typeof window === "undefined") return { ...notif, id: "", createdAt: "", read: false };
+  const list = getNotifications();
+  const newNotif: AppNotification = {
+    ...notif,
+    id: `notif_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    createdAt: new Date().toISOString(),
+    read: false,
+  };
+  list.unshift(newNotif);
+  localStorage.setItem(KEYS.notifications, JSON.stringify(list.slice(0, 50)));
+  // Dispatch custom event so NotificationBell can react in real-time
+  window.dispatchEvent(new CustomEvent("cvision:notification", { detail: newNotif }));
+  return newNotif;
+}
+
+export function markNotificationRead(id: string): void {
+  if (typeof window === "undefined") return;
+  const list = getNotifications().map((n) => (n.id === id ? { ...n, read: true } : n));
+  localStorage.setItem(KEYS.notifications, JSON.stringify(list));
+}
+
+export function markAllNotificationsRead(): void {
+  if (typeof window === "undefined") return;
+  const list = getNotifications().map((n) => ({ ...n, read: true }));
+  localStorage.setItem(KEYS.notifications, JSON.stringify(list));
+}
+
+export function clearNotifications(): void {
+  if (typeof window === "undefined") return;
+  localStorage.removeItem(KEYS.notifications);
+}
 
 // ── Analyses ────────────────────────────────────────────────
 

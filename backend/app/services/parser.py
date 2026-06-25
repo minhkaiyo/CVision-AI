@@ -8,6 +8,7 @@ from typing import Any
 
 from markitdown import MarkItDown
 
+from app.services.fallback_processing import parse_resume_fallback
 from app.llm import complete_json, get_llm_config, get_model_name, get_safe_max_tokens
 from app.prompts import PARSE_RESUME_PROMPT
 from app.prompts.templates import RESUME_SCHEMA_EXAMPLE
@@ -161,12 +162,16 @@ async def parse_resume_to_json(markdown_text: str) -> dict[str, Any]:
 
     config = get_llm_config()
     model_name = get_model_name(config)
-    result = await complete_json(
-        prompt=prompt,
-        system_prompt="You are a JSON extraction engine. Output only valid JSON, no explanations.",
-        max_tokens=get_safe_max_tokens(model_name),
-        retries=3,
-    )
+    try:
+        result = await complete_json(
+            prompt=prompt,
+            system_prompt="You are a JSON extraction engine. Output only valid JSON, no explanations.",
+            max_tokens=get_safe_max_tokens(model_name),
+            retries=3,
+        )
+    except Exception as exc:
+        logger.warning("LLM resume parsing failed, using fallback parser: %s", exc)
+        result = parse_resume_fallback(markdown_text)
 
     # Patch dates: restore months the LLM may have dropped
     result = restore_dates_from_markdown(result, markdown_text)

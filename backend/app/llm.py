@@ -59,6 +59,30 @@ class LLMConfig(BaseModel):
     api_key: str
     api_base: str | None = None
     reasoning_effort: Literal["minimal", "low", "medium", "high"] | None = None
+    auto_rotate: bool = False
+
+
+_ROTATION_PROVIDER_ORDER = [
+    "openai",
+    "groq",
+    "gemini",
+    "openrouter",
+    "anthropic",
+    "deepseek",
+    "ollama",
+    "openai_compatible",
+]
+
+_ROTATION_DEFAULT_MODELS: dict[str, str] = {
+    "openai": "gpt-4o-mini",
+    "groq": "llama-3.3-70b-versatile",
+    "gemini": "gemini-2.0-flash",
+    "openrouter": "meta-llama/llama-3.3-70b-instruct:free",
+    "anthropic": "claude-3-5-sonnet-latest",
+    "deepseek": "deepseek-chat",
+    "ollama": "llama3.1",
+    "openai_compatible": "gpt-4o-mini",
+}
 
 
 def _normalize_api_base(provider: str, api_base: str | None) -> str | None:
@@ -397,7 +421,81 @@ def get_llm_config() -> LLMConfig:
         api_key=api_key,
         api_base=stored.get("api_base", settings.llm_api_base),
         reasoning_effort=reasoning_effort,
+        auto_rotate=bool(stored.get("auto_rotate", False)),
     )
+
+
+def _build_candidate_config(
+    stored: dict[str, Any],
+    provider: str,
+    base_config: LLMConfig,
+) -> LLMConfig | None:
+    """Build a candidate provider config for auto-rotation."""
+    api_key = resolve_api_key(stored, provider)
+    if provider not in ("ollama", "openai_compatible") and not api_key:
+        return None
+
+    model = (
+        base_config.model
+        if provider == base_config.provider and base_config.model
+        else _ROTATION_DEFAULT_MODELS.get(provider, base_config.model)
+    )
+    api_base = (
+        base_config.api_base
+        if provider == base_config.provider
+        else None
+    )
+    reasoning_effort = (
+        base_config.reasoning_effort if provider == base_config.provider else None
+    )
+    return LLMConfig(
+        provider=provider,
+        model=model,
+        api_key=api_key,
+        api_base=api_base,
+        reasoning_effort=reasoning_effort,
+        auto_rotate=base_config.auto_rotate,
+    )
+
+
+def get_candidate_configs(config: LLMConfig | None = None) -> list[LLMConfig]:
+    """Return primary config plus fallback providers when auto-rotate is enabled."""
+    base_config = config or get_llm_config()
+    candidates = [base_config]
+    if not base_config.auto_rotate:
+        return candidates
+
+    stored = load_config_file()
+    seen = {
+        (
+            base_config.provider,
+            base_config.model,
+            base_config.api_base or "",
+            hash(base_config.api_key) if base_config.api_key else 0,
+        )
+    }
+
+    ordered_providers = [base_config.provider] + [
+        provider for provider in _ROTATION_PROVIDER_ORDER if provider != base_config.provider
+    ]
+    for provider in ordered_providers:
+        if provider == base_config.provider:
+            continue
+        candidate = _build_candidate_config(stored, provider, base_config)
+        if candidate is None:
+            continue
+        fingerprint = (
+            candidate.provider,
+            candidate.model,
+            candidate.api_base or "",
+            hash(candidate.api_key) if candidate.api_key else 0,
+        )
+        if fingerprint in seen:
+            continue
+        seen.add(fingerprint)
+        candidates.append(candidate)
+
+    return candidates
 
 
 def get_model_name(config: LLMConfig) -> str:

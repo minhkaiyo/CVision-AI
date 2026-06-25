@@ -563,6 +563,7 @@ class LLMConfigRequest(BaseModel):
     model: str | None = None
     api_key: str | None = None
     api_base: str | None = None
+    auto_rotate: bool | None = None
     # Optional reasoning-effort override.
     #   - A valid value ("minimal"/"low"/"medium"/"high") updates the setting.
     #   - Empty string clears the field — the server persists "" rather than
@@ -581,6 +582,7 @@ class LLMConfigResponse(BaseModel):
     api_key: str  # Masked
     api_base: str | None = None
     reasoning_effort: ReasoningEffortLiteral | None = None
+    auto_rotate: bool = False
 
 
 class FeatureConfigRequest(BaseModel):
