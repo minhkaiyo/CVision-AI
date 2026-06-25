@@ -7,6 +7,7 @@ import {
   FileText, LogOut, MessageSquare, Plus, User, Layers, Menu, X,
   ChevronDown, Bell, Search, Sparkles, History, Target, Home,
   ChevronLeft, PenTool, Bookmark, CheckCheck, Info, AlertTriangle, Loader2,
+  Briefcase, TrendingUp,
 } from "lucide-react";
 import Image from "next/image";
 import { useAuthGuard } from "@/lib/use-auth-guard";
@@ -305,6 +306,8 @@ const NAV_MAIN = [
 const NAV_TOOLS = [
   { href: "/dashboard/cover-letter", label: "Tạo Cover Letter", icon: MessageSquare },
   { href: "/dashboard/templates", label: "Mẫu CV (Templates)", icon: Layers },
+  { href: "/dashboard/job-matching", label: "Việc Làm Phù Hợp", icon: Briefcase },
+  { href: "/dashboard/insights", label: "Thị Trường Việc Làm", icon: TrendingUp },
 ];
 
 const NAV_ACCOUNT = [

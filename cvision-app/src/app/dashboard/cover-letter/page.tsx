@@ -131,24 +131,40 @@ export default function CoverLetterPage() {
       }
 
       const { apiGenerateCoverLetter } = await import("@/lib/api");
-      const data = await apiGenerateCoverLetter({
-        job_title: jobTitle.trim(),
-        company_name: company.trim() || undefined,
-        job_description: jd.trim() || undefined,
-        resume_markdown: resumeMarkdown || undefined,
-        tone,
-        language,
-        length,
-      });
 
-      setResult(data.cover_letter ?? "");
-      toast("success", "Cover letter đã được tạo thành công.");
-      pushNotification({
-        type: "success",
-        title: "Cover Letter đã được tạo",
-        body: `Cover letter cho vị trí ${jobTitle.trim()}${company ? ` tại ${company}` : ""} đã sẵn sàng.`,
-        link: "/dashboard/cover-letter",
-      });
+      // Retry up to 3 times to handle Render cold start (503 Service Unavailable)
+      let lastErr: unknown = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const data = await apiGenerateCoverLetter({
+            job_title: jobTitle.trim(),
+            company_name: company.trim() || undefined,
+            job_description: jd.trim() || undefined,
+            resume_markdown: resumeMarkdown || undefined,
+            tone,
+            language,
+            length,
+          });
+          setResult(data.cover_letter ?? "");
+          toast("success", "Cover letter đã được tạo thành công.");
+          pushNotification({
+            type: "success",
+            title: "Cover Letter đã được tạo",
+            body: `Cover letter cho vị trí ${jobTitle.trim()}${company ? ` tại ${company}` : ""} đã sẵn sàng.`,
+            link: "/dashboard/cover-letter",
+          });
+          return;
+        } catch (err: unknown) {
+          lastErr = err;
+          const msg = err instanceof Error ? err.message : "";
+          if ((msg.includes("503") || msg.includes("Service Unavailable")) && attempt < 2) {
+            await new Promise(r => setTimeout(r, 4000 * (attempt + 1)));
+            continue;
+          }
+          throw err;
+        }
+      }
+      throw lastErr;
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "";
       toast("error", message || "Chưa tạo được cover letter. Kiểm tra AI provider hoặc nhập JD chi tiết hơn.");

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { 
   Camera, Save, Eye, EyeOff, Shield, Bell, Link2, 
-  Loader2, Upload, Crown, Activity, CheckCircle2, Lock, Mail, Phone, GraduationCap, Briefcase, User 
+  Loader2, Upload, Crown, Activity, CheckCircle2, Lock, Mail, Phone, GraduationCap, Briefcase, User, Map
 } from "lucide-react";
 import Image from "next/image";
 import { toast } from "@/components/ui/toast";
@@ -374,6 +374,48 @@ export default function ProfilePage() {
             <p className="text-[12.5px] text-gray-500 font-medium mt-3 bg-blue-50/50 p-3 rounded-lg border border-blue-100/50 inline-block">
               <span className="font-bold text-blue-600">Sắp ra mắt:</span> Kết nối LinkedIn để tự động trích xuất lịch sử làm việc vào CV.
             </p>
+          </Card>
+
+          {/* Career Roadmap */}
+          <Card title="Lộ Trình Phát Triển" icon={Map}>
+            <p className="text-[13px] text-gray-500 mb-5">Kế hoạch phát triển sự nghiệp được AI cá nhân hóa cho bạn.</p>
+            <div className="space-y-0">
+              {[
+                { month: "Tháng 1–2", title: "Nắm vững TypeScript nâng cao + System Design", done: true, current: false },
+                { month: "Tháng 3–4", title: "Học Next.js 15 + Triển khai production app", done: true, current: false },
+                { month: "Tháng 5–6", title: "Deep dive vào AI/LLM integration", done: false, current: true },
+                { month: "Tháng 7–8", title: "Cloud Architecture (AWS/GCP) + DevOps basics", done: false, current: false },
+                { month: "Tháng 9–12", title: "Senior-level project + Open source contribution", done: false, current: false },
+              ].map((item, i, arr) => (
+                <div key={i} className="flex gap-4">
+                  {/* Timeline line + dot */}
+                  <div className="flex flex-col items-center">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-[13px] font-bold border-2 transition-all ${
+                      item.done ? "bg-emerald-500 border-emerald-500 text-white" :
+                      item.current ? "bg-blue-500 border-blue-500 text-white shadow-md shadow-blue-200" :
+                      "bg-white border-gray-200 text-gray-400"
+                    }`}>
+                      {item.done ? "✓" : item.current ? "●" : "○"}
+                    </div>
+                    {i < arr.length - 1 && (
+                      <div className={`w-0.5 flex-1 my-1 ${item.done ? "bg-emerald-200" : "bg-gray-100"}`} style={{ minHeight: 24 }} />
+                    )}
+                  </div>
+                  {/* Content */}
+                  <div className={`pb-5 flex-1 ${item.current ? "bg-blue-50/50 border border-blue-100 rounded-xl p-3 -ml-1 mb-1" : ""}`}>
+                    <p className={`text-[11px] font-bold uppercase tracking-wider mb-0.5 ${item.done ? "text-emerald-600" : item.current ? "text-blue-600" : "text-gray-400"}`}>
+                      {item.month} {item.current && "· Hiện tại"}
+                    </p>
+                    <p className={`text-[13.5px] font-semibold ${item.done ? "text-gray-700" : item.current ? "text-blue-900" : "text-gray-400"}`}>
+                      {item.title}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button disabled className="mt-2 flex items-center gap-2 bg-white border border-gray-200 text-gray-400 px-5 py-2.5 rounded-xl text-[13px] font-semibold cursor-not-allowed opacity-60">
+              🔗 Xem khoá học gợi ý
+            </button>
           </Card>
 
         </div>

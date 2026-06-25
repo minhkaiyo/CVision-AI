@@ -421,6 +421,44 @@ export default function BillingPage() {
         </div>
       )}
 
+      {/* Premium Human Review — Coming Soon */}
+      <div className="border-2 border-dashed border-amber-200 bg-amber-50/30 rounded-2xl p-8 relative overflow-hidden">
+        {/* Decoration */}
+        <div className="absolute top-0 right-0 w-32 h-32 bg-amber-100/50 rounded-full blur-2xl pointer-events-none" />
+
+        <div className="relative">
+          <span className="inline-block text-[11px] font-black px-3 py-1 bg-amber-100 text-amber-700 border border-amber-200 rounded-full uppercase tracking-wider mb-4">
+            Sắp Ra Mắt
+          </span>
+
+          <h3 className="text-xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+            👤 Premium Human Review
+          </h3>
+          <p className="text-[14px] text-gray-600 mb-5 leading-relaxed">
+            Chuyên gia HR thực tế xem xét và chỉnh sửa CV của bạn. Tư vấn 1-1 về định hướng sự nghiệp.
+          </p>
+
+          <ul className="space-y-2.5 mb-6">
+            {[
+              "HR chuyên nghiệp từ 500+ Fortune companies",
+              "Phản hồi chi tiết trong 48 giờ",
+              "1 buổi video call tư vấn (30 phút)",
+              "Cam kết phỏng vấn hoặc hoàn tiền",
+            ].map((item, i) => (
+              <li key={i} className="flex items-center gap-2.5 text-[13.5px] text-gray-700">
+                <span className="text-amber-500 font-bold shrink-0">✓</span> {item}
+              </li>
+            ))}
+          </ul>
+
+          <p className="text-[12px] text-gray-500 mb-4 font-medium">Dự kiến: Q3 2025</p>
+
+          <button disabled className="flex items-center gap-2 px-5 py-2.5 bg-white border border-amber-200 text-amber-600 font-bold text-[13px] rounded-xl opacity-60 cursor-not-allowed">
+            🔔 Thông báo tôi khi ra mắt
+          </button>
+        </div>
+      </div>
+
       <div className="text-center pb-4 flex items-center justify-center gap-4">
         <Link href="/pricing" className="inline-flex items-center gap-1 text-sm font-bold text-blue-600 hover:underline">
           Xem chi tiết bảng giá <ExternalLink className="w-3.5 h-3.5" />
