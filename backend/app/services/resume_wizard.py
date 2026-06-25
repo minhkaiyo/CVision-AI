@@ -180,11 +180,16 @@ def _next_gap_section(data: ResumeData) -> str:
     return "review"
 
 
-def _merge_entries[T](
-    existing: list[T],
-    updated: list[T],
-    key: Callable[[T], tuple[str, ...]],
-) -> list[T]:
+from typing import TypeVar
+
+_T = TypeVar("_T")
+
+
+def _merge_entries(
+    existing: list,
+    updated: list,
+    key: Callable,
+) -> list:
     """Union list entries by identity signature.
 
     A partial model reply (e.g. it echoes only the role the user just described

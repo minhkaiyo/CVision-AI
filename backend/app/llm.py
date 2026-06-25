@@ -376,19 +376,21 @@ def resolve_api_key(stored: dict, provider: str) -> str:
 def get_llm_config() -> LLMConfig:
     """Get current LLM configuration.
 
-    Priority for api_key: top-level api_key > api_keys[provider] > env/settings
-    Priority for reasoning_effort: config.json > env/settings
-
-    Runs a one-shot migration for existing gpt-5 users: if provider is openai,
-    model contains 'gpt-5', and reasoning_effort is ABSENT from config.json
-    (not merely empty), persist reasoning_effort='minimal' to preserve the
-    behavior the removed hardcoded branch provided. Users who clear the
-    field explicitly (empty string persisted by the PUT handler) will not
-    have it restored.
+    Priority (highest to lowest):
+    1. LLM_PROVIDER / LLM_MODEL env vars  ← always wins on Render/production
+    2. config.json (set via Admin UI)
+    3. pydantic settings defaults
     """
     stored = load_config_file()
-    provider = stored.get("provider", settings.llm_provider)
-    model = stored.get("model", settings.llm_model)
+
+    # Env vars take priority over config.json — ensures production deployments
+    # (Render, Railway, etc.) always use the correct provider even after restarts.
+    import os
+    env_provider = os.environ.get("LLM_PROVIDER", "").strip()
+    env_model = os.environ.get("LLM_MODEL", "").strip()
+
+    provider = env_provider or stored.get("provider", settings.llm_provider)
+    model = env_model or stored.get("model", settings.llm_model)
 
     # One-shot migration: preserve old gpt-5 reasoning_effort behavior for
     # existing configs. Gated on ABSENT key so users can opt out by clearing
