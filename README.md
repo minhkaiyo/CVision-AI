@@ -12,7 +12,7 @@
 <br/>
 
 <div align="center">
-  <h2>🚀 <a href="https://cv-resume-ai-analyze.vercel.app/">Live Demo: Trải nghiệm CVision AI ngay tại đây!</a> 🚀</h2>
+  <h2>🚀 <a href="https://cvision-app-three.vercel.app/">Live Demo: Trải nghiệm CVision AI ngay tại đây!</a> 🚀</h2>
   <p><i>Trực tiếp trải nghiệm tính năng Phân tích CV & AI Chat mà không cần cài đặt code.</i></p>
 </div>
 
